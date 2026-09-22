@@ -1,0 +1,33 @@
+{
+  "name": "chessly",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/setup-engine.mjs && vite",
+    "build": "node scripts/setup-engine.mjs && tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "oxlint",
+    "postinstall": "node scripts/setup-engine.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "analyze": "tsx tools/analyze-cli.ts"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "stockfish": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  },
+  "description": "Analyze your Chess.com games with Stockfish, right in the browser.",
+  "license": "GPL-3.0"
+}
