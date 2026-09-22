@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PRESETS, parseGame, type Preset } from '../lib/analyze'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { GameReport, Score } from '../lib/types'
@@ -39,6 +39,7 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
     game.hero ? game.black.username.toLowerCase() === game.hero.toLowerCase() : false,
   )
   const [tab, setTab] = useState<'report' | 'moves'>('report')
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   // Remounted per game (App keys on game id), so the ply resets on its own.
   useEffect(() => {
@@ -69,6 +70,23 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [go, ply, total])
+
+  // Phones have no arrow keys: swipe across the board to step through the game.
+  const onTouchStart = (event: React.TouchEvent) => {
+    const touch = event.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (!start) return
+    const touch = event.changedTouches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    go(dx < 0 ? ply + 1 : ply - 1)
+  }
 
   const currentMove = ply > 0 ? parsed.moves[ply - 1] : null
   const fen = ply === 0 ? parsed.positions[0] : parsed.positions[ply]
@@ -110,7 +128,7 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
 
       <div className="analysis-body">
         <div className="board-column">
-          <div className="board-wrap">
+          <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <EvalBar score={score} orientation={orientation} />
             <Board
               fen={fen}

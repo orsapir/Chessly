@@ -47,7 +47,7 @@ export class Engine implements Analyser {
         for (const listener of this.listeners) listener(line)
       }
       await this.command('uci', (line) => line === 'uciok')
-      this.send('setoption name Hash value 32')
+      this.send(`setoption name Hash value ${lowMemory() ? 16 : 32}`)
       this.send('setoption name UCI_AnalyseMode value true')
       await this.command('isready', (line) => line === 'readyok')
     })()
@@ -143,10 +143,16 @@ export class Engine implements Analyser {
   }
 }
 
-/** How many engines to run at once: enough to be quick, not enough to freeze a laptop. */
+/** Phones and small laptops report 4GB or less; each engine keeps its own heap. */
+function lowMemory(): boolean {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  return typeof memory === 'number' && memory <= 4
+}
+
+/** How many engines to run at once: enough to be quick, not enough to freeze the device. */
 export function defaultConcurrency(): number {
   const cores = navigator.hardwareConcurrency || 2
-  return Math.max(1, Math.min(4, cores - 1))
+  return Math.max(1, Math.min(lowMemory() ? 2 : 4, cores - 1))
 }
 
 /** Several engines sharing the work, one position at a time each. */

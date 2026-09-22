@@ -26,9 +26,27 @@ Other scripts:
 | `npm test` | unit tests for the scoring and classification logic |
 | `npm run analyze -- "<pgn>" [fast\|balanced\|deep]` | analyses a game in the terminal |
 
-Deploying is a static upload of `dist/` to any host. The only requirement is
-that `.wasm` files are served as `application/wasm`, which every mainstream
-static host does by default.
+## Putting it on your phone
+
+The build uses relative asset paths, so `dist/` works at a domain root, in a
+subfolder, or anywhere else you drop it. The only requirement is that `.wasm`
+files are served as `application/wasm`, which every mainstream static host does
+by default.
+
+**GitHub Pages.** `.github/workflows/pages.yml` builds and deploys on every push
+to `main` or the working branch. Turn it on once under *Settings → Pages →
+Source: GitHub Actions*; the site then lives at
+`https://<user>.github.io/<repo>/` and works on any phone.
+
+**Any static host.** `npm run build`, then upload the `dist/` folder — Netlify
+Drop, Cloudflare Pages, Vercel, S3, a Raspberry Pi. No server-side anything.
+
+**Straight off your laptop, same Wi-Fi.** `npm run dev -- --host` prints a
+`Network:` URL like `http://192.168.1.20:5173/`. Open that on your phone.
+
+A phone runs the analysis fine — the engine pool shrinks to two workers on
+devices reporting 4GB of memory or less. Swipe across the board to step through
+the moves.
 
 ## How the analysis works
 

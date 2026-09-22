@@ -33,14 +33,17 @@ export default function App() {
 
   const openPgn = (pgn: string) => {
     const { headers } = parseGame(pgn)
+    // chess.js fills absent PGN tags with "?", which is not a name.
+    const named = (value: string | undefined, fallback: string) =>
+      value && value !== '?' ? value : fallback
     setView({
       kind: 'analysis',
       from: view,
       game: {
         id: `pgn:${hash(pgn)}`,
         pgn,
-        white: { username: headers.White || 'White' },
-        black: { username: headers.Black || 'Black' },
+        white: { username: named(headers.White, 'White') },
+        black: { username: named(headers.Black, 'Black') },
         timeClass: headers.TimeControl,
       },
     })
