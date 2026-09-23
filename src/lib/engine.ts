@@ -18,6 +18,11 @@ export interface Analyser {
 export interface AnalyseOptions {
   depth: number
   multiPV?: number
+  /**
+   * Node ceiling. A handful of tangled positions would otherwise take ten
+   * times as long as the median one and dominate the whole run.
+   */
+  maxNodes?: number
   /** Hard ceiling so a single position can never stall the run. */
   maxTimeMs?: number
 }
@@ -98,8 +103,9 @@ export class Engine implements Analyser {
       resolveGuard = resolve
     })
 
+    const limits = options.maxNodes ? `depth ${options.depth} nodes ${options.maxNodes}` : `depth ${options.depth}`
     const search = this.command(
-      `go depth ${options.depth}`,
+      `go ${limits}`,
       (line) => line.startsWith('bestmove'),
       (line) => {
         if (!line.startsWith('info ') || !line.includes(' pv ')) return
@@ -115,7 +121,7 @@ export class Engine implements Analyser {
 
     const collect = (): PositionEval => {
       const lines = [...best.values()].sort((a, b) => a.multipv - b.multipv)
-      return { fen, lines, depth: lines[0]?.depth ?? 0 }
+      return { fen, lines, depth: lines[0]?.depth ?? 0, target: options.depth }
     }
 
     if (options.maxTimeMs) {
@@ -149,14 +155,24 @@ function lowMemory(): boolean {
   return typeof memory === 'number' && memory <= 4
 }
 
+/** A phone or tablet: worth a lower ceiling than a desktop, but not a crippled one. */
+export function handheld(): boolean {
+  return (
+    typeof matchMedia === 'function' &&
+    matchMedia('(pointer: coarse)').matches &&
+    Math.min(screen.width, screen.height) < 900
+  )
+}
+
 /**
  * How many engines to run at once. Positions are independent searches, so this
  * scales almost linearly - the limits are leaving the device usable and not
- * allocating a hash table per core on a phone.
+ * allocating a hash table per core.
  */
 export function defaultConcurrency(): number {
   const cores = navigator.hardwareConcurrency || 2
-  return Math.max(1, Math.min(lowMemory() ? 2 : 6, cores - 1))
+  const ceiling = lowMemory() ? 3 : handheld() ? 4 : 6
+  return Math.max(1, Math.min(ceiling, cores - 1))
 }
 
 /** Several engines sharing the work, one position at a time each. */

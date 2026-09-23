@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { parseGame, settingsFor } from './lib/analyze'
+import { handheld } from './lib/engine'
 import { AnalysisView, type GameMeta } from './components/AnalysisView'
 import { GameBrowser } from './components/GameBrowser'
 import { Home } from './components/Home'
@@ -17,8 +18,10 @@ export default function App() {
     const saved = localStorage.getItem(LAST_USER)
     return saved ? { kind: 'games', username: saved } : { kind: 'home' }
   })
+  // A phone gets a shallower default so a full game still lands in about half
+  // a minute; the slider overrides it either way.
   const [depth, setDepth] = useState<number>(
-    () => settingsFor(Number(localStorage.getItem(LAST_DEPTH)) || 18).depth,
+    () => settingsFor(Number(localStorage.getItem(LAST_DEPTH)) || (handheld() ? 16 : 18)).depth,
   )
 
   const chooseDepth = (next: number) => {

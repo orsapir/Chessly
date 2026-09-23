@@ -29,7 +29,13 @@ export interface PositionEval {
   fen: string
   /** Best lines, sorted by strength, from the side-to-move's perspective. */
   lines: EngineLine[]
+  /** Depth the search actually reached, which a node limit can cut short. */
   depth: number
+  /**
+   * Depth that was asked for. Two searches are only comparable when this
+   * matches - the depth reached varies with how hard the position was.
+   */
+  target: number
 }
 
 export interface AnalyzedMove {

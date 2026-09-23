@@ -17,7 +17,7 @@ async function nodeEngine(): Promise<Analyser> {
   const sf = await initEngine('lite-single')
   let queue: Promise<unknown> = Promise.resolve()
 
-  const analyse = (fen: string, options: { depth: number; multiPV?: number }) => {
+  const analyse = (fen: string, options: { depth: number; multiPV?: number; maxNodes?: number }) => {
     const run = queue.then(
       () =>
         new Promise<PositionEval>((resolve) => {
@@ -29,12 +29,16 @@ async function nodeEngine(): Promise<Analyser> {
               if (parsed) best.set(parsed.multipv, parsed)
             } else if (line.startsWith('bestmove')) {
               const lines = [...best.values()].sort((a, b) => a.multipv - b.multipv)
-              resolve({ fen, lines, depth: lines[0]?.depth ?? 0 })
+              resolve({ fen, lines, depth: lines[0]?.depth ?? 0, target: options.depth })
             }
           }
           sf.sendCommand(`setoption name MultiPV value ${options.multiPV ?? 1}`)
           sf.sendCommand(`position fen ${fen}`)
-          sf.sendCommand(`go depth ${options.depth}`)
+          sf.sendCommand(
+            options.maxNodes
+              ? `go depth ${options.depth} nodes ${options.maxNodes}`
+              : `go depth ${options.depth}`,
+          )
         }),
     )
     queue = run.catch(() => undefined)

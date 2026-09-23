@@ -6,6 +6,7 @@ import {
   cpOf,
   gameAccuracy,
   estimatedRating,
+  isOnlyMove,
   moveAccuracy,
   winPercent,
 } from './evaluate'
@@ -72,7 +73,7 @@ export const PRESETS: { label: string; depth: number; detail: string }[] = [
 ]
 
 /** Scanning deeper than this buys little; the deep pass is where depth pays. */
-const MAX_SCAN_DEPTH = 13
+const MAX_SCAN_DEPTH = 12
 
 /** Below this, a uniform search is cheap enough that two passes are pointless. */
 const TWO_PASS_FROM = 15
@@ -112,6 +113,15 @@ const CLOSER_LOOK_LOSS = 2
 const CLOSER_LOOK_GAP = 12
 
 /**
+ * Node ceiling for a search at a given depth, scaled so it stays about three
+ * times the median position's cost. A tenth of the positions in a game take
+ * half the total time without it; the verdicts on those positions barely move.
+ */
+export function nodeCapFor(depth: number): number {
+  return Math.round(1_000_000 * 2 ** ((depth - 18) / 2))
+}
+
+/**
  * Ceiling on how much of the game the deep pass may re-search. Without it a
  * wild game nominates nearly every position and the scan becomes dead weight;
  * with it, a two-pass run always costs less than searching everything deeply.
@@ -135,7 +145,13 @@ export async function analyzeGame(
   const scan: (PositionEval | null)[] = new Array(total).fill(null)
   const deep: (PositionEval | null)[] = new Array(total).fill(null)
 
-  const search = async (indices: number[], depth: number, into: (PositionEval | null)[], phase: Phase) => {
+  const search = async (
+    indices: number[],
+    depth: number,
+    into: (PositionEval | null)[],
+    phase: Phase,
+    multiPV: number,
+  ) => {
     let cursor = 0
     let done = 0
     // Positions are independent searches, so hand them out to every engine we
@@ -148,14 +164,18 @@ export async function analyzeGame(
         const index = indices[slot]
         const fen = game.positions[index]
         const terminal = terminalScore(fen)
-        into[index] = terminal
-          ? { fen, lines: [{ multipv: 1, depth: 0, score: terminal, pv: [] }], depth: 0 }
-          : await engine.analyse(fen, {
-              // Book positions are settled; spending depth on them is waste.
-              depth: index < bookPlies ? Math.min(BOOK_SEARCH_DEPTH, depth) : depth,
-              multiPV: 2,
-              maxTimeMs: 30000,
-            })
+        if (terminal) {
+          into[index] = { fen, lines: [{ multipv: 1, depth: 0, score: terminal, pv: [] }], depth: 0, target: 0 }
+        } else {
+          // Book positions are settled; spending depth on them is waste.
+          const wanted = index < bookPlies ? Math.min(BOOK_SEARCH_DEPTH, depth) : depth
+          into[index] = await engine.analyse(fen, {
+            depth: wanted,
+            multiPV,
+            maxNodes: nodeCapFor(wanted),
+            maxTimeMs: 30000,
+          })
+        }
         onProgress?.(++done, indices.length, phase)
       }
     }
@@ -164,8 +184,10 @@ export async function analyzeGame(
     )
   }
 
+  // The scan runs two lines: it is cheap at this depth and the runner-up is
+  // what tells us whether a move was the only one that held.
   const everyPosition = Array.from({ length: total }, (_, index) => index)
-  await search(everyPosition, settings.scanDepth, scan, 'scan')
+  await search(everyPosition, settings.scanDepth, scan, 'scan', 2)
 
   // Second pass: only where the scan saw something worth being sure about,
   // most significant first and bounded, so this never costs more than simply
@@ -187,7 +209,10 @@ export async function analyzeGame(
     }
 
     const indices = [...wanted].filter((index) => index < total).sort((a, b) => a - b)
-    if (indices.length) await search(indices, settings.depth, deep, 'deep')
+    // One line only: a second costs about a third more, and the only thing it
+    // would add - whether the alternative was much worse - the scan already
+    // answered on a search where both numbers came from the same place.
+    if (indices.length) await search(indices, settings.depth, deep, 'deep', 1)
   }
 
   const moves: AnalyzedMove[] = game.moves.map((move, ply) => {
@@ -197,7 +222,7 @@ export async function analyzeGame(
     const useDeep = comparable(deep[ply], deep[ply + 1])
     const before = (useDeep ? deep[ply] : scan[ply]) ?? null
     const after = (useDeep ? deep[ply + 1] : scan[ply + 1]) ?? null
-    return describeMove({ move, ply, before, after, sans })
+    return describeMove({ move, ply, before, after, sans, onlyMove: onlyMoveAt(scan[ply], move.color) })
   })
 
   return {
@@ -217,13 +242,14 @@ export async function analyzeGame(
 }
 
 /**
- * Whether two searches can be compared: both present, and either searched to
- * the same depth or exact (mate and stalemate carry depth 0 and are true at
- * any depth).
+ * Whether two searches can be compared: both present, and either asked for the
+ * same depth or exact (mate and stalemate carry target 0 and hold at any
+ * depth). Compared by depth asked for, not depth reached, because the node cap
+ * makes the latter vary from position to position.
  */
 function comparable(before: PositionEval | null, after: PositionEval | null): boolean {
   if (!before || !after) return false
-  return before.depth === after.depth || before.depth === 0 || after.depth === 0
+  return before.target === after.target || before.target === 0 || after.target === 0
 }
 
 /**
@@ -282,6 +308,19 @@ interface DescribeInput {
   before: PositionEval | null
   after: PositionEval | null
   sans: string[]
+  onlyMove: boolean
+}
+
+/**
+ * Whether the best move here was the only one that held, read off the two-line
+ * search so both numbers come from one search rather than two of different
+ * depths.
+ */
+function onlyMoveAt(evaluation: PositionEval | null, color: Color): boolean {
+  const best = evaluation?.lines[0]?.score
+  const second = evaluation?.lines[1]?.score
+  if (!best || !second) return false
+  return isOnlyMove(winPercent(best, color), winPercent(second, color))
 }
 
 /** The depth a verdict actually rests on: the shallower of its two searches. */
@@ -290,7 +329,7 @@ function verdictDepth(before: PositionEval | null, after: PositionEval | null): 
   return depths.length ? Math.min(...depths) : 0
 }
 
-function describeMove({ move, ply, before, after, sans }: DescribeInput): AnalyzedMove {
+function describeMove({ move, ply, before, after, sans, onlyMove }: DescribeInput): AnalyzedMove {
   const color = move.color
   const neutral: Score = { cp: 0, mate: null }
   const bestScore = before?.lines[0]?.score ?? neutral
@@ -303,9 +342,6 @@ function describeMove({ move, ply, before, after, sans }: DescribeInput): Analyz
   // when the player found the engine's move there is nothing to charge them for.
   const winAfter = playedBest ? winBefore : winPercent(playedScore, color)
   const loss = Math.max(0, winBefore - winAfter)
-
-  const secondLine = before?.lines[1]
-  const winSecond = secondLine ? winPercent(secondLine.score, color) : null
 
   const sign = color === 'white' ? 1 : -1
   const cpLoss = playedBest
@@ -321,7 +357,7 @@ function describeMove({ move, ply, before, after, sans }: DescribeInput): Analyz
   const classification = classify({
     winBefore,
     winAfter,
-    winSecond,
+    onlyMove,
     playedUci: move.uci,
     bestUci: bestMoveUci,
     bestScore,

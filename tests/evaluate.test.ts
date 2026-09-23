@@ -6,6 +6,7 @@ import {
   cpOf,
   formatScore,
   gameAccuracy,
+  isOnlyMove,
   moveAccuracy,
   winPercent,
   type ClassifyInput,
@@ -50,7 +51,7 @@ test('one blunder drags a game accuracy down', () => {
 const base: ClassifyInput = {
   winBefore: 50,
   winAfter: 50,
-  winSecond: 45,
+  onlyMove: false,
   playedUci: 'e2e4',
   bestUci: 'e2e4',
   bestScore: { cp: 0, mate: null },
@@ -70,7 +71,7 @@ test('every classification is reachable', () => {
   assert.equal(classify({ ...base, playedUci: 'd2d4', winAfter: 35 }), 'mistake')
   assert.equal(classify({ ...base, playedUci: 'd2d4', winAfter: 20 }), 'blunder')
   assert.equal(classify({ ...base, sacrifice: 300, winAfter: 60, winBefore: 60 }), 'brilliant')
-  assert.equal(classify({ ...base, winSecond: 20, winAfter: 55, winBefore: 55 }), 'great')
+  assert.equal(classify({ ...base, onlyMove: true, winAfter: 55, winBefore: 55 }), 'great')
   assert.equal(classify({ ...base, playedUci: 'd2d4', winBefore: 90, winAfter: 70 }), 'miss')
 })
 
@@ -80,7 +81,11 @@ test('brilliance is not awarded for giving material back while crushing', () => 
 
 test('a great move has to change the standing of the game', () => {
   // Best by a mile, but the position stays winning either way.
-  assert.equal(classify({ ...base, winBefore: 80, winAfter: 80, winSecond: 68 }), 'best')
+  assert.equal(isOnlyMove(80, 68), false)
+  assert.equal(classify({ ...base, winBefore: 80, winAfter: 80, onlyMove: false }), 'best')
+  // A gap that drops the game from winning to unclear is the real thing.
+  assert.equal(isOnlyMove(70, 45), true)
+  assert.equal(isOnlyMove(70, 55), false, 'a gap under 20 points is not an only move')
 })
 
 /** FEN of the position before the given ply of a PGN. */

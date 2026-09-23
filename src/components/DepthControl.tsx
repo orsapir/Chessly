@@ -81,12 +81,15 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
 }
 
 /**
- * Rough wall-clock for a 40-move game, from measured timings on a four-core
- * laptop. Deliberately vague: a phone is slower, a desktop much faster.
+ * Rough wall-clock for a 45-move game, measured on a four-core laptop running
+ * three engines. A phone takes roughly twice as long; a desktop with more
+ * cores, less.
  */
 function estimate(depth: number): string {
-  if (depth <= 12) return 'A few seconds a game.'
-  if (depth <= 16) return 'Ten to twenty seconds a game.'
-  if (depth <= 20) return 'Half a minute or so a game.'
-  return 'A minute or more — worth it for one game, not for twenty.'
+  if (depth <= 12) return 'A few seconds a game; about double on a phone.'
+  if (depth <= 15) return 'Ten seconds or so a game; about double on a phone.'
+  if (depth <= 17) return 'Fifteen seconds or so a game; about double on a phone.'
+  if (depth <= 18) return 'Twenty to thirty seconds a game; about double on a phone.'
+  if (depth <= 20) return 'About a minute a game, and longer on a phone.'
+  return 'Several minutes — for one game you care about, not for twenty.'
 }

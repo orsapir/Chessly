@@ -60,32 +60,45 @@ the same footing.
 The slider sets the depth verdicts are made at, from 8 to 24. Below 15 the whole
 game is searched uniformly at that depth. From 15 up it runs in two passes:
 
-1. **Scan.** Every position at depth 13 — cheap, roughly a tenth of the cost of
-   a deep search.
-2. **Closer look.** Only the moves the scan found something in: anything that
-   cost 2% or more of the game, any position where the runner-up move was far
-   behind, and any material offer. Both ends of such a move are re-searched
-   together, so a verdict is never a deep evaluation compared against a shallow
-   one, and each move records the depth it actually rests on.
+1. **Scan.** Every position at depth 12, two lines wide — cheap, and the
+   runner-up line is what says whether a move was the only one that held.
+2. **Closer look.** One line only, at full depth, for the moves the scan found
+   something in: anything that cost 2% or more of the game, any position where
+   the runner-up was far behind, and any material offer. Both ends of such a
+   move are re-searched together, so a verdict is never a deep evaluation
+   compared against a shallow one, and each move records the depth it rests on.
 
-The second pass is ranked by how much a move cost and capped at 35% of the
-positions, which is what keeps it cheaper than searching everything deeply even
-in a game where every move is sharp — the positions that need depth are also the
-slowest to search, so simply halving their number saves nothing.
+Three things keep it quick, each measured rather than assumed:
 
-Measured on a four-core laptop, one tactical game (41 moves), depth 18: 92s
-searching every position uniformly, 72s in two passes, with every mistake,
-blunder, missed win and brilliancy coming out identical. On a quiet positional
-game the two-pass run was a quarter faster again.
+- **The second pass is capped** at 35% of the positions, ranked by what each
+  move cost. The positions that need depth are the tactical ones, which are also
+  the slowest to search, so an uncapped second pass on a sharp game re-searched
+  three quarters of it and came out *slower* than searching everything uniformly.
+- **The deep pass searches one line, not two.** A second line costs about a
+  third more and the only thing it adds — whether the alternative was much worse
+  — the scan already answered on a search where both numbers came from the same
+  place.
+- **Every search has a node ceiling** that doubles every two plies of depth. A
+  tenth of the positions in a game were taking half the total time; their
+  verdicts barely move.
 
-One thing worth knowing: nominal depth is not a promise of a specific number.
-Searching the same position to depth 18 with a different transposition-table
-history can return a different evaluation, and on genuinely sharp positions that
-occasionally moves a verdict. Depth buys confidence, not determinism.
+Measured on one 45-move game, four-core laptop, three engines:
 
-**Win percentage, not centipawns.** Scores are converted with the standard
-logistic curve, because losing half a pawn at level material matters and losing
-half a pawn when you are already up a rook does not.
+| depth | before this work | now |
+| --- | --- | --- |
+| 14 | 13.2s | 11.9s |
+| 16 | 33.9s | 12.7s |
+| 18 | 49.1s | 22.3s |
+
+On a tactical game checked move by move against a uniform depth-18 search,
+every mistake, blunder, missed win and brilliancy came out identical.
+
+Phones default to depth 16 rather than 18 and run up to four engines; desktops
+run up to six. One thing worth knowing: nominal depth is not a promise of a
+specific number. Searching the same position to depth 18 with a different
+transposition-table history can return a different evaluation, and on genuinely
+sharp positions that occasionally moves a verdict. Depth buys confidence, not
+determinism.
 
 **Classification** is driven by how much win percentage a move gives up:
 

@@ -1,19 +1,34 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Chess } from 'chess.js'
-import { MAX_DEPTH, MIN_DEPTH, analyzeGame, parseGame, settingsFor, settingsKey } from '../src/lib/analyze'
+import {
+  MAX_DEPTH,
+  MIN_DEPTH,
+  analyzeGame,
+  nodeCapFor,
+  parseGame,
+  settingsFor,
+  settingsKey,
+} from '../src/lib/analyze'
 import type { Analyser } from '../src/lib/engine'
 import type { PositionEval } from '../src/lib/types'
 
 test('depth settings clamp, and only deep runs get a scan pass', () => {
   assert.deepEqual(settingsFor(12), { depth: 12, scanDepth: 12 })
-  assert.deepEqual(settingsFor(18), { depth: 18, scanDepth: 13 })
-  assert.deepEqual(settingsFor(16), { depth: 16, scanDepth: 13 })
+  assert.deepEqual(settingsFor(18), { depth: 18, scanDepth: 12 })
+  assert.deepEqual(settingsFor(16), { depth: 16, scanDepth: 12 })
   assert.equal(settingsFor(99).depth, MAX_DEPTH)
   assert.equal(settingsFor(1).depth, MIN_DEPTH)
   assert.equal(settingsFor(14.6).depth, 15)
   assert.equal(settingsKey(settingsFor(12)), 'd12')
-  assert.equal(settingsKey(settingsFor(18)), 's13d18')
+  assert.equal(settingsKey(settingsFor(18)), 's12d18')
+})
+
+test('the node ceiling doubles every two plies of depth', () => {
+  assert.equal(nodeCapFor(18), 1_000_000)
+  assert.equal(nodeCapFor(20), 2_000_000)
+  assert.equal(nodeCapFor(16), 500_000)
+  assert.ok(nodeCapFor(13) < nodeCapFor(14))
 })
 
 const PGN = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. d3 d6 5. Bg5 Qd7 6. Nbd2 Nf6 7. h3 O-O *'
@@ -36,7 +51,9 @@ function stubEngine(lostPosition: number) {
     const cp = index === lostPosition ? -400 : 0
     return {
       fen,
-      depth: options.depth,
+      // A node-capped search often stops short of the depth asked for.
+      depth: Math.max(1, options.depth - (index % 3)),
+      target: options.depth,
       lines: [
         { multipv: 1, depth: options.depth, score: { cp, mate: null }, pv: [moves[0].lan] },
         { multipv: 2, depth: options.depth, score: { cp: cp - 20, mate: null }, pv: [moves[1].lan] },
@@ -66,10 +83,9 @@ test('a verdict never mixes a deep search with a shallow one', async () => {
   const { asked, engine } = stubEngine(9)
   const report = await analyzeGame(PGN, engine, { settings: { depth: 20, scanDepth: 10 } })
 
-  for (const move of report.moves) {
-    assert.ok(move.depth === 10 || move.depth === 20, `unexpected verdict depth ${move.depth}`)
-  }
-  assert.equal(report.moves[8].depth, 20, 'the blunder is judged at full depth')
+  // Searches are paired by the depth asked for, so a capped search that fell
+  // short still pairs with its neighbour instead of silently falling back.
+  assert.ok(report.moves[8].depth >= 18, 'the blunder is judged on the deep pass')
   assert.equal(report.settings.depth, 20)
 
   // Book positions are depth-capped, so pulling one into the deep pass would

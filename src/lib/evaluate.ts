@@ -87,8 +87,12 @@ export interface ClassifyInput {
   winBefore: number
   /** Win% for the mover after playing. */
   winAfter: number
-  /** Win% the mover would have had after the engine's second choice. */
-  winSecond: number | null
+  /**
+   * Whether this was the only move that held the position: the runner-up was
+   * far enough behind to change the standing of the game. Measured on the
+   * scan's two-line search, where both numbers come from one search.
+   */
+  onlyMove: boolean
   playedUci: string
   bestUci: string | null
   bestScore: Score
@@ -115,10 +119,19 @@ export const CLASSIFICATION_ORDER: Classification[] = [
 ]
 
 /** Losing / unclear / winning, as far as a human would describe the position. */
-function standing(win: number): 0 | 1 | 2 {
+export function standing(win: number): 0 | 1 | 2 {
   if (win < 35) return 0
   if (win < 65) return 1
   return 2
+}
+
+/**
+ * Was the best move the only one that held? True when the runner-up is far
+ * enough behind to put the game in a different state. Both numbers must come
+ * from the same search, or the gap is meaningless.
+ */
+export function isOnlyMove(winBest: number, winSecond: number): boolean {
+  return winBest - winSecond >= 20 && standing(winBest) > standing(winSecond)
 }
 
 /** Thresholds are in win% given up by the move. */
@@ -143,17 +156,7 @@ export function classify(input: ClassifyInput): Classification {
   }
 
   // The one move that holds the position together: everything else drops off.
-  // It has to change the standing of the game, not merely be a bit better -
-  // in a forcing sequence there is always a second-best move that looks awful.
-  if (
-    playedBest &&
-    loss <= 1 &&
-    input.winSecond !== null &&
-    input.winAfter - input.winSecond >= 20 &&
-    standing(input.winAfter) > standing(input.winSecond) &&
-    input.winAfter >= 25 &&
-    input.winBefore < 92
-  ) {
+  if (playedBest && loss <= 1 && input.onlyMove && input.winAfter >= 25 && input.winBefore < 92) {
     return 'great'
   }
 
