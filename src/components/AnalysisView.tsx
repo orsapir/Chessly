@@ -4,6 +4,7 @@ import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
 import { Board } from './Board'
+import { Spinner } from './Spinner'
 import { DepthControl } from './DepthControl'
 import { EvalBar } from './EvalBar'
 import { EvalGraph } from './EvalGraph'
@@ -163,12 +164,11 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
             </button>
           </div>
 
-          <MoveComment
-            move={analyzed}
-            running={running}
-            opening={report?.opening ?? null}
-            ply={ply}
-          />
+          {running ? (
+            <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
+          ) : (
+            <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
+          )}
         </div>
 
         <aside className="side-column">
@@ -184,26 +184,6 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
           </div>
 
           <DepthControl depth={depth} onChange={onDepthChange} disabled={running} />
-
-          {running && (
-            <div className="progress">
-              <div className="progress-track">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }}
-                />
-              </div>
-              <div className="progress-row">
-                <span>
-                  {progress.phase === 'scan' ? 'Scanning' : 'Taking a closer look at'}{' '}
-                  {progress.done}/{progress.total} positions
-                </span>
-                <button className="ghost small" onClick={cancel}>
-                  Stop
-                </button>
-              </div>
-            </div>
-          )}
 
           {error && <p className="error">{error}</p>}
 
@@ -235,6 +215,38 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
   )
 }
 
+function AnalysisProgress({
+  progress,
+  settings,
+  onStop,
+}: {
+  progress: { done: number; total: number; phase: 'scan' | 'deep' }
+  settings: { depth: number; scanDepth: number }
+  onStop: () => void
+}) {
+  const share = progress.total ? (progress.done / progress.total) * 100 : 0
+  const scanning = progress.phase === 'scan'
+
+  return (
+    <div className="comment analysing" aria-live="polite">
+      <div className="analysing-head">
+        <Spinner />
+        <strong>{scanning ? 'Scanning every move' : 'Taking a closer look'}</strong>
+        <button className="ghost small" onClick={onStop}>
+          Stop
+        </button>
+      </div>
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${share}%` }} />
+      </div>
+      <span className="analysing-count">
+        {progress.done} of {progress.total} positions · depth{' '}
+        {scanning ? settings.scanDepth : settings.depth}
+      </span>
+    </div>
+  )
+}
+
 function PlayerTag({ name, rating, color }: { name: string; rating?: number; color: 'white' | 'black' }) {
   return (
     <span className="player-tag">
@@ -254,12 +266,10 @@ function scoreline(result: string): string {
 
 function MoveComment({
   move,
-  running,
   opening,
   ply,
 }: {
   move: GameReport['moves'][number] | null
-  running: boolean
   opening: string | null
   ply: number
 }) {
@@ -274,8 +284,8 @@ function MoveComment({
   if (!move) {
     return (
       <div className="comment neutral">
-        <strong>{running ? 'Still thinking…' : 'Not analysed yet'}</strong>
-        <span>{running ? 'Annotations appear as soon as the engine finishes.' : ''}</span>
+        <strong>Not analysed yet</strong>
+        <span />
       </div>
     )
   }
