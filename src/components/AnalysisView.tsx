@@ -32,6 +32,9 @@ interface Props {
 
 const START_SCORE: Score = { cp: 20, mate: null }
 
+/** Fast enough to follow a game, slow enough to read each move. */
+const PLAY_INTERVAL = 900
+
 export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
   const settings = useMemo(() => settingsFor(depth), [depth])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
@@ -42,6 +45,7 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
     game.hero ? game.black.username.toLowerCase() === game.hero.toLowerCase() : false,
   )
   const [tab, setTab] = useState<'report' | 'moves'>('report')
+  const [playing, setPlaying] = useState(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   // Remounted per game (App keys on game id), so the ply resets on its own.
@@ -53,17 +57,36 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
   const total = parsed.moves.length
   const go = useCallback((next: number) => setPly(Math.max(0, Math.min(total, next))), [total])
 
+  // Play through the game. Reaching the last move simply stops the clock -
+  // there is nothing left to schedule - and any manual move takes over, since
+  // nothing is more annoying than a board that fights back.
+  const autoPlaying = playing && ply < total
+  useEffect(() => {
+    if (!autoPlaying) return
+    const timer = setTimeout(() => setPly((current) => Math.min(total, current + 1)), PLAY_INTERVAL)
+    return () => clearTimeout(timer)
+  }, [autoPlaying, ply, total])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      const step = (next: number) => {
+        setPlaying(false)
+        go(next)
+      }
       const actions: Record<string, () => void> = {
-        ArrowLeft: () => go(ply - 1),
-        ArrowRight: () => go(ply + 1),
-        ArrowUp: () => go(0),
-        ArrowDown: () => go(total),
-        Home: () => go(0),
-        End: () => go(total),
+        ArrowLeft: () => step(ply - 1),
+        ArrowRight: () => step(ply + 1),
+        ArrowUp: () => step(0),
+        ArrowDown: () => step(total),
+        Home: () => step(0),
+        End: () => step(total),
         f: () => setFlipped((value) => !value),
+        ' ': () => {
+          if (autoPlaying) return setPlaying(false)
+          if (ply >= total) go(0)
+          setPlaying(true)
+        },
       }
       const action = actions[event.key]
       if (action) {
@@ -73,7 +96,7 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, ply, total])
+  }, [autoPlaying, go, ply, total])
 
   // Phones have no arrow keys: swipe across the board to step through the game.
   const onTouchStart = (event: React.TouchEvent) => {
@@ -89,8 +112,17 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
     const dx = touch.clientX - start.x
     const dy = touch.clientY - start.y
     if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return
-    go(dx < 0 ? ply + 1 : ply - 1)
+    jump(dx < 0 ? ply + 1 : ply - 1)
   }
+
+  /** Moving by hand takes the board back from the auto-play. */
+  const jump = useCallback(
+    (next: number) => {
+      setPlaying(false)
+      go(next)
+    },
+    [go],
+  )
 
   const currentMove = ply > 0 ? parsed.moves[ply - 1] : null
   const fen = ply === 0 ? parsed.positions[0] : parsed.positions[ply]
@@ -144,22 +176,38 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
           </div>
 
           <div className="controls">
-            <button onClick={() => go(0)} title="Start (↑)">
+            <button onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
               ⏮
             </button>
-            <button onClick={() => go(ply - 1)} title="Previous (←)">
+            <button onClick={() => jump(ply - 1)} title="Previous (←)" aria-label="Previous move">
               ◀
+            </button>
+            <button
+              className={`play${autoPlaying ? ' active' : ''}`}
+              onClick={() => {
+                if (autoPlaying) return setPlaying(false)
+                if (ply >= total) go(0)
+                setPlaying(true)
+              }}
+              title={autoPlaying ? 'Pause (space)' : 'Play through the game (space)'}
+              aria-label={autoPlaying ? 'Pause' : 'Play through the game'}
+            >
+              {autoPlaying ? '❚❚' : '▶'}
             </button>
             <span className="ply-counter">
               {ply}/{total}
             </span>
-            <button onClick={() => go(ply + 1)} title="Next (→)">
-              ▶
+            <button onClick={() => jump(ply + 1)} title="Next (→)" aria-label="Next move">
+              ▶❙
             </button>
-            <button onClick={() => go(total)} title="End (↓)">
+            <button onClick={() => jump(total)} title="End (↓)" aria-label="Go to end">
               ⏭
             </button>
-            <button onClick={() => setFlipped((value) => !value)} title="Flip board (f)">
+            <button
+              onClick={() => setFlipped((value) => !value)}
+              title="Flip board (f)"
+              aria-label="Flip board"
+            >
               ⇅
             </button>
           </div>
@@ -189,16 +237,16 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
 
           {report && (
             <>
-              <EvalGraph moves={report.moves} currentPly={ply} onSelect={go} />
+              <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
               {tab === 'report' ? (
                 <ReportPanel
                   report={report}
                   whiteName={game.white.username}
                   blackName={game.black.username}
-                  onSelect={go}
+                  onSelect={jump}
                 />
               ) : (
-                <MoveList moves={report.moves} currentPly={ply} onSelect={go} />
+                <MoveList moves={report.moves} currentPly={ply} onSelect={jump} />
               )}
               {fromCache && (
                 <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, settings, true)}>
@@ -208,7 +256,9 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
             </>
           )}
 
-          {!report && !running && !error && <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={go} />}
+          {!report && !running && !error && (
+            <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={jump} />
+          )}
         </aside>
       </div>
     </div>

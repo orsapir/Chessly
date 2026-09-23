@@ -70,7 +70,7 @@ export interface AnalysisSettings {
 export const PRESETS: { label: string; depth: number; detail: string }[] = [
   { label: 'Quick', depth: 12, detail: 'A few seconds. Finds the blunders.' },
   { label: 'Review', depth: 18, detail: 'The default. What decides club games.' },
-  { label: 'Deep', depth: 22, detail: 'Slow and stubborn, for a game you care about.' },
+  { label: 'Deep', depth: 24, detail: 'Slow and stubborn, for a game you care about.' },
 ]
 
 /** Scanning deeper than this buys little; the deep pass is where depth pays. */
@@ -147,11 +147,25 @@ export function nodeCapFor(depth: number): number {
 }
 
 /**
- * Ceiling on how much of the game the deep pass may re-search. Without it a
- * wild game nominates nearly every position and the scan becomes dead weight;
- * with it, a two-pass run always costs less than searching everything deeply.
+ * Ceiling on how much of the game the deep pass may re-search, at the depth
+ * the two-pass mode starts. Without a ceiling a wild game nominates nearly
+ * every position and the scan becomes dead weight.
  */
 const DEEP_PASS_BUDGET = 0.35
+
+/**
+ * The same ceiling, scaled for depth. A position costs roughly twice as much
+ * for every two plies, so holding the share fixed would make depth 24 eight
+ * times the work of depth 18 - three minutes on a laptop, and nobody waits
+ * that out. Spending a roughly constant amount of engine time instead means a
+ * deeper setting buys certainty about the moves that matter most rather than a
+ * longer wait for the same list. Moves that offer material are exempt and are
+ * always searched in full.
+ */
+function deepPassBudget(depth: number): number {
+  const costPerPosition = 2 ** ((depth - TWO_PASS_FROM - 3) / 2)
+  return Math.max(0.15, Math.min(DEEP_PASS_BUDGET, DEEP_PASS_BUDGET / costPerPosition))
+}
 
 export async function analyzeGame(
   pgn: string,
@@ -236,7 +250,7 @@ export async function analyzeGame(
       wanted.add(ply + 1)
     }
 
-    const budget = Math.max(2, Math.round(total * DEEP_PASS_BUDGET))
+    const budget = Math.max(2, Math.round(total * deepPassBudget(settings.depth)))
     const ranked = candidates
       .filter((candidate) => candidate.weight > 0 && !candidate.sacrifice)
       .sort((a, b) => b.weight - a.weight)
