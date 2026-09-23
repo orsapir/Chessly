@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { parseGame, settingsFor } from './lib/analyze'
 import { handheld } from './lib/engine'
+import { readItem, removeItem, writeItem } from './lib/storage'
 import { AnalysisView, type GameMeta } from './components/AnalysisView'
 import { GameBrowser } from './components/GameBrowser'
 import { Home } from './components/Home'
@@ -15,23 +16,23 @@ const LAST_DEPTH = 'chessly:depth'
 
 export default function App() {
   const [view, setView] = useState<View>(() => {
-    const saved = localStorage.getItem(LAST_USER)
+    const saved = readItem(LAST_USER)
     return saved ? { kind: 'games', username: saved } : { kind: 'home' }
   })
   // A phone gets a shallower default so a full game still lands in about half
   // a minute; the slider overrides it either way.
   const [depth, setDepth] = useState<number>(
-    () => settingsFor(Number(localStorage.getItem(LAST_DEPTH)) || (handheld() ? 16 : 18)).depth,
+    () => settingsFor(Number(readItem(LAST_DEPTH)) || (handheld() ? 16 : 18)).depth,
   )
 
   const chooseDepth = (next: number) => {
     const settled = settingsFor(next).depth
     setDepth(settled)
-    localStorage.setItem(LAST_DEPTH, String(settled))
+    writeItem(LAST_DEPTH, String(settled))
   }
 
   const openUser = (username: string) => {
-    localStorage.setItem(LAST_USER, username)
+    writeItem(LAST_USER, username)
     setView({ kind: 'games', username })
   }
 
@@ -75,7 +76,7 @@ export default function App() {
             username={view.username}
             onOpen={(game) => setView({ kind: 'analysis', game, from: view })}
             onChangeUser={() => {
-              localStorage.removeItem(LAST_USER)
+              removeItem(LAST_USER)
               setView({ kind: 'home' })
             }}
           />
