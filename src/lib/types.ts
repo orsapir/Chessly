@@ -60,6 +60,8 @@ export interface AnalyzedMove {
   loss: number
   /** Centipawns given up by this move, capped so won positions stay sane. */
   cpLoss: number
+  /** Search depth this verdict rests on. */
+  depth: number
   /** Per-move accuracy, 0-100. */
   accuracy: number
   classification: Classification
@@ -87,7 +89,7 @@ export interface GameReport {
   opening: string | null
   /** Plies where the evaluation swung the most, biggest first. */
   turningPoints: number[]
-  depth: number
+  settings: { depth: number; scanDepth: number }
   engine: string
   analyzedAt: number
 }

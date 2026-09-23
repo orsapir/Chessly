@@ -288,6 +288,8 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 @media (pointer: coarse) {
   .controls button { min-height: 44px; min-width: 44px; }
   .tabs button, .segmented button { min-height: 44px; }
+  .depth-presets button { min-height: 36px; }
+  .depth-control input[type='range'] { height: 32px; }
   .game-row { padding: 0.85rem 0.9rem; }
 }
 .controls button:hover { background: var(--panel); color: var(--accent); }
@@ -319,7 +321,43 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   font-weight: 600;
 }
 .tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--accent-soft); }
-.preset-select { padding: 0.5rem 0.6rem; font-size: 0.85rem; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+/* ---------- depth control ---------- */
+
+.depth-control {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.depth-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.depth-head label { color: var(--muted); font-size: 0.85rem; }
+.depth-head strong { color: var(--text); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.depth-presets { display: flex; gap: 0.25rem; }
+.depth-presets button {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.depth-presets button:hover:not(:disabled) { color: var(--text); border-color: #4a463f; background: var(--panel-2); }
+.depth-presets button.active { background: var(--accent); color: #14231b; border-color: var(--accent); font-weight: 600; }
+
+.depth-control input[type='range'] {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.depth-control input[type='range']:disabled { cursor: not-allowed; opacity: 0.5; }
+.depth-note { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
 
 .progress { display: flex; flex-direction: column; gap: 0.4rem; }
 .progress-track { height: 6px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }

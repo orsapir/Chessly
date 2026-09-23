@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseGame, type Preset } from './lib/analyze'
+import { parseGame, settingsFor } from './lib/analyze'
 import { AnalysisView, type GameMeta } from './components/AnalysisView'
 import { GameBrowser } from './components/GameBrowser'
 import { Home } from './components/Home'
@@ -10,20 +10,21 @@ type View =
   | { kind: 'analysis'; game: GameMeta; from: View }
 
 const LAST_USER = 'chessly:last-user'
-const LAST_PRESET = 'chessly:preset'
+const LAST_DEPTH = 'chessly:depth'
 
 export default function App() {
   const [view, setView] = useState<View>(() => {
     const saved = localStorage.getItem(LAST_USER)
     return saved ? { kind: 'games', username: saved } : { kind: 'home' }
   })
-  const [preset, setPreset] = useState<Preset>(
-    () => (localStorage.getItem(LAST_PRESET) as Preset) ?? 'balanced',
+  const [depth, setDepth] = useState<number>(
+    () => settingsFor(Number(localStorage.getItem(LAST_DEPTH)) || 18).depth,
   )
 
-  const choosePreset = (next: Preset) => {
-    setPreset(next)
-    localStorage.setItem(LAST_PRESET, next)
+  const chooseDepth = (next: number) => {
+    const settled = settingsFor(next).depth
+    setDepth(settled)
+    localStorage.setItem(LAST_DEPTH, String(settled))
   }
 
   const openUser = (username: string) => {
@@ -81,8 +82,8 @@ export default function App() {
           <AnalysisView
             key={view.game.id}
             game={view.game}
-            preset={preset}
-            onPresetChange={choosePreset}
+            depth={depth}
+            onDepthChange={chooseDepth}
             onBack={() => setView(view.from)}
           />
         )}

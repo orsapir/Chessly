@@ -2,27 +2,27 @@ import type { GameReport } from './types'
 
 const PREFIX = 'chessly:report:'
 // Bump when the report shape changes, so stale entries are simply ignored.
-const VERSION = 'v2'
+const VERSION = 'v3'
 
-const keyFor = (gameId: string, preset: string) => `${PREFIX}${VERSION}:${preset}:${gameId}`
+const keyFor = (gameId: string, settings: string) => `${PREFIX}${VERSION}:${settings}:${gameId}`
 
-export function readReport(gameId: string, preset: string): GameReport | null {
+export function readReport(gameId: string, settings: string): GameReport | null {
   try {
-    const raw = localStorage.getItem(keyFor(gameId, preset))
+    const raw = localStorage.getItem(keyFor(gameId, settings))
     return raw ? (JSON.parse(raw) as GameReport) : null
   } catch {
     return null
   }
 }
 
-export function writeReport(gameId: string, preset: string, report: GameReport) {
+export function writeReport(gameId: string, settings: string, report: GameReport) {
   try {
-    localStorage.setItem(keyFor(gameId, preset), JSON.stringify(report))
+    localStorage.setItem(keyFor(gameId, settings), JSON.stringify(report))
   } catch {
     // Out of space: drop the oldest half of what we have and try once more.
     evictOldest()
     try {
-      localStorage.setItem(keyFor(gameId, preset), JSON.stringify(report))
+      localStorage.setItem(keyFor(gameId, settings), JSON.stringify(report))
     } catch {
       /* give up quietly - the cache is a nicety, not a feature */
     }

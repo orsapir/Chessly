@@ -47,7 +47,7 @@ export class Engine implements Analyser {
         for (const listener of this.listeners) listener(line)
       }
       await this.command('uci', (line) => line === 'uciok')
-      this.send(`setoption name Hash value ${lowMemory() ? 16 : 32}`)
+      this.send(`setoption name Hash value ${lowMemory() ? 16 : 24}`)
       this.send('setoption name UCI_AnalyseMode value true')
       await this.command('isready', (line) => line === 'readyok')
     })()
@@ -149,10 +149,14 @@ function lowMemory(): boolean {
   return typeof memory === 'number' && memory <= 4
 }
 
-/** How many engines to run at once: enough to be quick, not enough to freeze the device. */
+/**
+ * How many engines to run at once. Positions are independent searches, so this
+ * scales almost linearly - the limits are leaving the device usable and not
+ * allocating a hash table per core on a phone.
+ */
 export function defaultConcurrency(): number {
   const cores = navigator.hardwareConcurrency || 2
-  return Math.max(1, Math.min(lowMemory() ? 2 : 4, cores - 1))
+  return Math.max(1, Math.min(lowMemory() ? 2 : 6, cores - 1))
 }
 
 /** Several engines sharing the work, one position at a time each. */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnalysisAborted, analyzeGame, type Preset } from './analyze'
+import { AnalysisAborted, analyzeGame, settingsKey, type AnalysisSettings, type Phase } from './analyze'
 import { readReport, writeReport } from './cache'
 import { EnginePool } from './engine'
 import type { GameReport } from './types'
@@ -7,7 +7,7 @@ import type { GameReport } from './types'
 export interface AnalysisState {
   report: GameReport | null
   running: boolean
-  progress: { done: number; total: number }
+  progress: { done: number; total: number; phase: Phase }
   error: string | null
   fromCache: boolean
 }
@@ -15,7 +15,7 @@ export interface AnalysisState {
 const IDLE: AnalysisState = {
   report: null,
   running: false,
-  progress: { done: 0, total: 0 },
+  progress: { done: 0, total: 0, phase: 'scan' },
   error: null,
   fromCache: false,
 }
@@ -48,32 +48,33 @@ export function useAnalysis() {
     setState(IDLE)
   }, [])
 
-  const run = useCallback(async (gameId: string, pgn: string, preset: Preset, force = false) => {
+  const run = useCallback(async (gameId: string, pgn: string, settings: AnalysisSettings, force = false) => {
     const id = ++runId.current
     cancelled.current = false
+    const key = settingsKey(settings)
 
     if (!force) {
-      const cached = readReport(gameId, preset)
+      const cached = readReport(gameId, key)
       if (cached) {
-        setState({ report: cached, running: false, progress: { done: 0, total: 0 }, error: null, fromCache: true })
+        setState({ ...IDLE, report: cached, fromCache: true })
         return cached
       }
     }
 
-    setState({ report: null, running: true, progress: { done: 0, total: 1 }, error: null, fromCache: false })
+    setState({ ...IDLE, running: true, progress: { done: 0, total: 1, phase: 'scan' } })
     pool.current ??= new EnginePool()
 
     try {
       const report = await analyzeGame(pgn, pool.current, {
-        preset,
+        settings,
         shouldStop: () => cancelled.current || runId.current !== id,
-        onProgress: (done, total) => {
-          if (runId.current === id) setState((previous) => ({ ...previous, progress: { done, total } }))
+        onProgress: (done, total, phase) => {
+          if (runId.current === id) setState((previous) => ({ ...previous, progress: { done, total, phase } }))
         },
       })
       if (runId.current !== id) return null
-      writeReport(gameId, preset, report)
-      setState({ report, running: false, progress: { done: 0, total: 0 }, error: null, fromCache: false })
+      writeReport(gameId, key, report)
+      setState({ ...IDLE, report })
       return report
     } catch (error) {
       if (runId.current !== id) return null
@@ -81,13 +82,7 @@ export function useAnalysis() {
         setState(IDLE)
         return null
       }
-      setState({
-        report: null,
-        running: false,
-        progress: { done: 0, total: 0 },
-        error: error instanceof Error ? error.message : 'Analysis failed.',
-        fromCache: false,
-      })
+      setState({ ...IDLE, error: error instanceof Error ? error.message : 'Analysis failed.' })
       return null
     }
   }, [])

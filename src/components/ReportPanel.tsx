@@ -86,7 +86,11 @@ export function ReportPanel({ report, whiteName, blackName, onSelect }: Props) {
       )}
 
       <p className="report-footnote">
-        {report.engine} at depth {report.depth}. Accuracy ignores book and forced moves.
+        {report.engine}{' '}
+        {report.settings.scanDepth < report.settings.depth
+          ? `— every move to depth ${report.settings.scanDepth}, key moments to depth ${report.settings.depth}`
+          : `at depth ${report.settings.depth}`}
+        . Accuracy ignores book and forced moves.
       </p>
     </div>
   )

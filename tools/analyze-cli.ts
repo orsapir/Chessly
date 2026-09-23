@@ -5,7 +5,7 @@
  *   npx tsx tools/analyze-cli.ts "<pgn>" [depth]
  */
 import { createRequire } from 'node:module'
-import { analyzeGame } from '../src/lib/analyze'
+import { analyzeGame, settingsFor, type AnalysisSettings } from '../src/lib/analyze'
 import { CLASSIFICATION_META, formatScore } from '../src/lib/evaluate'
 import type { Analyser } from '../src/lib/engine'
 import type { EngineLine, PositionEval, Score } from '../src/lib/types'
@@ -63,27 +63,35 @@ function parseInfo(line: string, blackToMove: boolean): EngineLine | null {
 
 const pgn = process.argv[2]
 if (!pgn) {
-  console.error('usage: npx tsx tools/analyze-cli.ts "<pgn>" [fast|balanced|deep]')
+  console.error('usage: npx tsx tools/analyze-cli.ts "<pgn>" [depth] [--uniform]')
   process.exit(1)
 }
-const preset = (process.argv[3] ?? 'fast') as 'fast' | 'balanced' | 'deep'
+const depth = Number(process.argv[3] ?? 14)
+const uniform = process.argv.includes('--uniform')
+const settings: AnalysisSettings = uniform
+  ? { depth, scanDepth: depth }
+  : settingsFor(depth)
 
 const engine = await nodeEngine()
 const started = Date.now()
 const report = await analyzeGame(pgn, engine, {
-  preset,
-  onProgress: (done, total) => process.stderr.write(`\r${done}/${total}`),
+  settings,
+  onProgress: (done, total, phase) => process.stderr.write(`\r${phase} ${done}/${total}    `),
 })
 process.stderr.write('\n')
 
-console.log(`opening: ${report.opening ?? 'unknown'}   engine: ${report.engine} d${report.depth}`)
+console.log(
+  `opening: ${report.opening ?? 'unknown'}   engine: ${report.engine}   ` +
+    `scan d${report.settings.scanDepth} / deep d${report.settings.depth}   ` +
+    `${report.moves.filter((move) => move.depth >= report.settings.depth).length}/${report.moves.length} moves at full depth`,
+)
 console.log(`took ${((Date.now() - started) / 1000).toFixed(1)}s`)
 for (const move of report.moves) {
   const meta = CLASSIFICATION_META[move.classification]
   const prefix = move.color === 'white' ? `${move.moveNumber}.` : `${move.moveNumber}...`
   console.log(
     `${prefix.padStart(6)} ${move.san.padEnd(8)} ${formatScore(move.score).padStart(7)}  ` +
-      `${meta.label.padEnd(11)} loss=${move.loss.toFixed(1).padStart(5)} ` +
+      `${meta.label.padEnd(11)} d${String(move.depth).padEnd(2)} loss=${move.loss.toFixed(1).padStart(5)} ` +
       `${move.sacrifice ? `sac=${move.sacrifice} ` : ''}${move.bestMoveSan && move.bestMoveSan !== move.san ? `best=${move.bestMoveSan}` : ''}`,
   )
 }

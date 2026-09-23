@@ -51,31 +51,79 @@ export function parseGame(pgn: string): ParsedGame {
   return { headers, moves, positions, result: headers.Result ?? '*' }
 }
 
-export type Preset = 'fast' | 'balanced' | 'deep'
+export const MIN_DEPTH = 8
+export const MAX_DEPTH = 24
 
-export const PRESETS: Record<Preset, { label: string; depth: number; detail: string }> = {
-  fast: { label: 'Fast', depth: 12, detail: 'A quick pass, a few seconds a game.' },
-  balanced: { label: 'Balanced', depth: 14, detail: 'The default. Catches what decides club games.' },
-  deep: { label: 'Deep', depth: 17, detail: 'Slow and stubborn. For a game you care about.' },
+export interface AnalysisSettings {
+  /** Depth the verdicts are made at. */
+  depth: number
+  /**
+   * Depth of the first pass over every position. Below `depth` this turns the
+   * run into a scan followed by a deep look at the moves that matter; equal to
+   * `depth` it searches the whole game uniformly.
+   */
+  scanDepth: number
 }
 
+export const PRESETS: { label: string; depth: number; detail: string }[] = [
+  { label: 'Quick', depth: 12, detail: 'A few seconds. Finds the blunders.' },
+  { label: 'Review', depth: 18, detail: 'The default. What decides club games.' },
+  { label: 'Deep', depth: 22, detail: 'Slow and stubborn, for a game you care about.' },
+]
+
+/** Scanning deeper than this buys little; the deep pass is where depth pays. */
+const MAX_SCAN_DEPTH = 13
+
+/** Below this, a uniform search is cheap enough that two passes are pointless. */
+const TWO_PASS_FROM = 15
+
+export function settingsFor(depth: number): AnalysisSettings {
+  const clamped = Math.round(Math.max(MIN_DEPTH, Math.min(MAX_DEPTH, depth)))
+  return {
+    depth: clamped,
+    scanDepth: clamped >= TWO_PASS_FROM ? Math.min(MAX_SCAN_DEPTH, clamped - 3) : clamped,
+  }
+}
+
+/** A stable string for cache keys and for telling two runs apart. */
+export function settingsKey(settings: AnalysisSettings): string {
+  return settings.scanDepth < settings.depth ? `s${settings.scanDepth}d${settings.depth}` : `d${settings.depth}`
+}
+
+export type Phase = 'scan' | 'deep'
+
 export interface AnalyzeOptions {
-  preset?: Preset
-  onProgress?: (done: number, total: number) => void
+  settings?: AnalysisSettings
+  onProgress?: (done: number, total: number, phase: Phase) => void
   /** Return true to abort partway through. */
   shouldStop?: () => boolean
 }
 
-/** Book plies are shallow: nobody needs depth 18 to confirm 1. e4 is playable. */
+/** Book plies are shallow: nobody needs depth 20 to confirm 1. e4 is playable. */
 const BOOK_SEARCH_DEPTH = 10
+
+/**
+ * How much win percentage a move has to put in doubt before it earns a
+ * full-depth search: the boundary below which a move is simply "excellent".
+ */
+const CLOSER_LOOK_LOSS = 2
+
+/** A big gap to the runner-up means the choice itself was the moment. */
+const CLOSER_LOOK_GAP = 12
+
+/**
+ * Ceiling on how much of the game the deep pass may re-search. Without it a
+ * wild game nominates nearly every position and the scan becomes dead weight;
+ * with it, a two-pass run always costs less than searching everything deeply.
+ */
+const DEEP_PASS_BUDGET = 0.35
 
 export async function analyzeGame(
   pgn: string,
   engine: Analyser,
   options: AnalyzeOptions = {},
 ): Promise<GameReport> {
-  const { preset = 'balanced', onProgress, shouldStop } = options
-  const { depth } = PRESETS[preset]
+  const { settings = settingsFor(18), onProgress, shouldStop } = options
   const game = parseGame(pgn)
   const sans = game.moves.map((move) => move.san)
 
@@ -84,43 +132,73 @@ export async function analyzeGame(
   while (bookPlies < sans.length && lookupBook(sans.slice(0, bookPlies + 1)).inBook) bookPlies++
 
   const total = game.positions.length
-  const evals: (PositionEval | null)[] = new Array(total).fill(null)
+  const scan: (PositionEval | null)[] = new Array(total).fill(null)
+  const deep: (PositionEval | null)[] = new Array(total).fill(null)
 
-  // Positions are independent searches, so hand them out to every engine we
-  // have and let each pull the next one as it finishes.
-  let cursor = 0
-  let done = 0
-  let aborted = false
-
-  const consume = async () => {
-    while (true) {
-      const index = cursor++
-      if (index >= total || aborted) return
-      if (shouldStop?.()) {
-        aborted = true
-        return
+  const search = async (indices: number[], depth: number, into: (PositionEval | null)[], phase: Phase) => {
+    let cursor = 0
+    let done = 0
+    // Positions are independent searches, so hand them out to every engine we
+    // have and let each pull the next one as it finishes.
+    const consume = async () => {
+      while (true) {
+        const slot = cursor++
+        if (slot >= indices.length) return
+        if (shouldStop?.()) throw new AnalysisAborted()
+        const index = indices[slot]
+        const fen = game.positions[index]
+        const terminal = terminalScore(fen)
+        into[index] = terminal
+          ? { fen, lines: [{ multipv: 1, depth: 0, score: terminal, pv: [] }], depth: 0 }
+          : await engine.analyse(fen, {
+              // Book positions are settled; spending depth on them is waste.
+              depth: index < bookPlies ? Math.min(BOOK_SEARCH_DEPTH, depth) : depth,
+              multiPV: 2,
+              maxTimeMs: 30000,
+            })
+        onProgress?.(++done, indices.length, phase)
       }
-      const fen = game.positions[index]
-      const terminal = terminalScore(fen)
-      evals[index] = terminal
-        ? { fen, lines: [{ multipv: 1, depth: 0, score: terminal, pv: [] }], depth: 0 }
-        : await engine.analyse(fen, {
-            depth: index < bookPlies ? Math.min(BOOK_SEARCH_DEPTH, depth) : depth,
-            multiPV: 2,
-            maxTimeMs: 20000,
-          })
-      onProgress?.(++done, total)
     }
+    await Promise.all(
+      Array.from({ length: Math.max(1, Math.min(engine.concurrency, indices.length)) }, consume),
+    )
   }
 
-  await Promise.all(
-    Array.from({ length: Math.max(1, Math.min(engine.concurrency, total)) }, consume),
-  )
-  if (aborted) throw new AnalysisAborted()
+  const everyPosition = Array.from({ length: total }, (_, index) => index)
+  await search(everyPosition, settings.scanDepth, scan, 'scan')
 
-  const moves: AnalyzedMove[] = game.moves.map((move, ply) =>
-    describeMove({ move, ply, before: evals[ply], after: evals[ply + 1], sans }),
-  )
+  // Second pass: only where the scan saw something worth being sure about,
+  // most significant first and bounded, so this never costs more than simply
+  // searching the whole game deeply. Both ends of a move are re-searched
+  // together, so a verdict never compares a shallow evaluation against a deep
+  // one.
+  if (settings.scanDepth < settings.depth) {
+    const candidates = game.moves
+      .map((move, ply) => ({ ply, weight: closerLookWeight(move, ply, scan, sans) }))
+      .filter((candidate) => candidate.weight > 0)
+      .sort((a, b) => b.weight - a.weight)
+
+    const budget = Math.max(2, Math.round(total * DEEP_PASS_BUDGET))
+    const wanted = new Set<number>()
+    for (const { ply } of candidates) {
+      if (wanted.size >= budget) break
+      wanted.add(ply)
+      wanted.add(ply + 1)
+    }
+
+    const indices = [...wanted].filter((index) => index < total).sort((a, b) => a - b)
+    if (indices.length) await search(indices, settings.depth, deep, 'deep')
+  }
+
+  const moves: AnalyzedMove[] = game.moves.map((move, ply) => {
+    // Use the deep pass only where it covers both ends of the move at the same
+    // depth. Anything else would compare a deep evaluation against a shallow
+    // one, which is how a quiet move ends up labelled a blunder.
+    const useDeep = comparable(deep[ply], deep[ply + 1])
+    const before = (useDeep ? deep[ply] : scan[ply]) ?? null
+    const after = (useDeep ? deep[ply + 1] : scan[ply + 1]) ?? null
+    return describeMove({ move, ply, before, after, sans })
+  })
 
   return {
     moves,
@@ -132,10 +210,55 @@ export async function analyzeGame(
       .sort((a, b) => b.loss - a.loss)
       .slice(0, 3)
       .map((move) => move.ply),
-    depth,
+    settings,
     engine: engine.name,
     analyzedAt: Date.now(),
   }
+}
+
+/**
+ * Whether two searches can be compared: both present, and either searched to
+ * the same depth or exact (mate and stalemate carry depth 0 and are true at
+ * any depth).
+ */
+function comparable(before: PositionEval | null, after: PositionEval | null): boolean {
+  if (!before || !after) return false
+  return before.depth === after.depth || before.depth === 0 || after.depth === 0
+}
+
+/**
+ * How badly a move wants a full-depth search, judged from the shallow scan.
+ * Zero means leave it alone. Larger means look here first: what a player most
+ * wants explained is what cost them the most.
+ */
+function closerLookWeight(
+  move: ParsedGame['moves'][number],
+  ply: number,
+  scan: (PositionEval | null)[],
+  sans: string[],
+): number {
+  if (lookupBook(sans.slice(0, ply + 1)).inBook) return 0
+
+  const before = scan[ply]
+  const after = scan[ply + 1]
+  const bestScore = before?.lines[0]?.score
+  const playedScore = after?.lines[0]?.score
+  // No usable scan for this move: treat it as worth a proper look.
+  if (!bestScore || !playedScore) return 100
+
+  const winBefore = winPercent(bestScore, move.color)
+  const playedBest = before?.lines[0]?.pv[0] === move.uci
+  const loss = playedBest ? 0 : Math.max(0, winBefore - winPercent(playedScore, move.color))
+  if (loss >= CLOSER_LOOK_LOSS) return loss
+
+  const second = before?.lines[1]
+  const gap = second ? winBefore - winPercent(second.score, move.color) : 0
+  if (gap >= CLOSER_LOOK_GAP) return CLOSER_LOOK_LOSS + gap / 10
+
+  // A material offer the scan rated fine is exactly the kind of move a shallow
+  // search gets wrong, so it is worth confirming - but it is not an error, so
+  // it queues behind anything that actually cost something.
+  return sacrificeValue(move.fenBefore, move.uci) >= 180 ? CLOSER_LOOK_LOSS / 2 : 0
 }
 
 export class AnalysisAborted extends Error {
@@ -159,6 +282,12 @@ interface DescribeInput {
   before: PositionEval | null
   after: PositionEval | null
   sans: string[]
+}
+
+/** The depth a verdict actually rests on: the shallower of its two searches. */
+function verdictDepth(before: PositionEval | null, after: PositionEval | null): number {
+  const depths = [before?.depth, after?.depth].filter((depth): depth is number => typeof depth === 'number' && depth > 0)
+  return depths.length ? Math.min(...depths) : 0
 }
 
 function describeMove({ move, ply, before, after, sans }: DescribeInput): AnalyzedMove {
@@ -219,6 +348,7 @@ function describeMove({ move, ply, before, after, sans }: DescribeInput): Analyz
     winAfter,
     loss,
     cpLoss,
+    depth: verdictDepth(before, after),
     accuracy: moveAccuracy(loss),
     classification,
     opening: inBook ? (name ?? undefined) : undefined,

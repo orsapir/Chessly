@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PRESETS, parseGame, type Preset } from '../lib/analyze'
+import { parseGame, settingsFor, settingsKey } from '../lib/analyze'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
 import { Board } from './Board'
+import { DepthControl } from './DepthControl'
 import { EvalBar } from './EvalBar'
 import { EvalGraph } from './EvalGraph'
 import { MoveList } from './MoveList'
@@ -23,14 +24,15 @@ export interface GameMeta {
 
 interface Props {
   game: GameMeta
-  preset: Preset
-  onPresetChange: (preset: Preset) => void
+  depth: number
+  onDepthChange: (depth: number) => void
   onBack: () => void
 }
 
 const START_SCORE: Score = { cp: 20, mate: null }
 
-export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
+export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
+  const settings = useMemo(() => settingsFor(depth), [depth])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
   const { report, running, progress, error, fromCache, run, cancel } = useAnalysis()
 
@@ -43,8 +45,9 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
 
   // Remounted per game (App keys on game id), so the ply resets on its own.
   useEffect(() => {
-    void run(game.id, game.pgn, preset)
-  }, [game.id, game.pgn, preset, run])
+    void run(game.id, game.pgn, settings)
+    // settingsKey keeps this from re-running on an equivalent settings object.
+  }, [game.id, game.pgn, settingsKey(settings), run]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = parsed.moves.length
   const go = useCallback((next: number) => setPly(Math.max(0, Math.min(total, next))), [total])
@@ -178,19 +181,9 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
                 Moves
               </button>
             </div>
-            <select
-              className="preset-select"
-              value={preset}
-              onChange={(event) => onPresetChange(event.target.value as Preset)}
-              title={PRESETS[preset].detail}
-            >
-              {Object.entries(PRESETS).map(([key, value]) => (
-                <option key={key} value={key}>
-                  {value.label} · depth {value.depth}
-                </option>
-              ))}
-            </select>
           </div>
+
+          <DepthControl depth={depth} onChange={onDepthChange} disabled={running} />
 
           {running && (
             <div className="progress">
@@ -202,7 +195,8 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
               </div>
               <div className="progress-row">
                 <span>
-                  Analysing {progress.done}/{progress.total} positions
+                  {progress.phase === 'scan' ? 'Scanning' : 'Taking a closer look at'}{' '}
+                  {progress.done}/{progress.total} positions
                 </span>
                 <button className="ghost small" onClick={cancel}>
                   Stop
@@ -227,7 +221,7 @@ export function AnalysisView({ game, preset, onPresetChange, onBack }: Props) {
                 <MoveList moves={report.moves} currentPly={ply} onSelect={go} />
               )}
               {fromCache && (
-                <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, preset, true)}>
+                <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, settings, true)}>
                   Re-analyse from scratch
                 </button>
               )}

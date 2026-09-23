@@ -50,10 +50,38 @@ the moves.
 
 ## How the analysis works
 
-Each position in the game is searched once with `MultiPV 2`, so for every move
-we know both what was played and what the engine preferred. The evaluation
-after a move comes from the search of the next position, which keeps the two
-numbers on the same footing.
+Each position in the game is searched with `MultiPV 2`, so for every move we
+know both what was played and what the engine preferred. The evaluation after a
+move comes from the search of the next position, which keeps the two numbers on
+the same footing.
+
+### Depth
+
+The slider sets the depth verdicts are made at, from 8 to 24. Below 15 the whole
+game is searched uniformly at that depth. From 15 up it runs in two passes:
+
+1. **Scan.** Every position at depth 13 — cheap, roughly a tenth of the cost of
+   a deep search.
+2. **Closer look.** Only the moves the scan found something in: anything that
+   cost 2% or more of the game, any position where the runner-up move was far
+   behind, and any material offer. Both ends of such a move are re-searched
+   together, so a verdict is never a deep evaluation compared against a shallow
+   one, and each move records the depth it actually rests on.
+
+The second pass is ranked by how much a move cost and capped at 35% of the
+positions, which is what keeps it cheaper than searching everything deeply even
+in a game where every move is sharp — the positions that need depth are also the
+slowest to search, so simply halving their number saves nothing.
+
+Measured on a four-core laptop, one tactical game (41 moves), depth 18: 92s
+searching every position uniformly, 72s in two passes, with every mistake,
+blunder, missed win and brilliancy coming out identical. On a quiet positional
+game the two-pass run was a quarter faster again.
+
+One thing worth knowing: nominal depth is not a promise of a specific number.
+Searching the same position to depth 18 with a different transposition-table
+history can return a different evaluation, and on genuinely sharp positions that
+occasionally moves a verdict. Depth buys confidence, not determinism.
 
 **Win percentage, not centipawns.** Scores are converted with the standard
 logistic curve, because losing half a pawn at level material matters and losing
