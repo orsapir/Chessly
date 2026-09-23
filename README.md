@@ -91,17 +91,21 @@ an ordinary move.
 
 Measured on one 45-move game, four-core laptop, three engines:
 
-| depth | before this work | now |
+| depth | first version | now |
 | --- | --- | --- |
 | 14 | 13.2s | 11.9s |
 | 16 | 33.9s | 12.7s |
-| 18 | 49.1s | 32.2s |
-| 20 | — | 62.3s |
-| 24 | — | 175.8s |
+| 18 | 49.1s | 30.2s |
+| 24 | 175.8s* | 66.3s |
 
-Depth 18 gave up about ten of those seconds when sacrifices were promoted past
-the cap, which is what it costs to have brilliancies found rather than guessed
-at.
+\* Depth 24 at the old fixed 35% share. Depth 18 also gave up about ten seconds
+when sacrifices were promoted past the cap, which is what it costs to have
+brilliancies found rather than guessed at.
+
+Two things that sound like they should help and do not, both measured: at depth
+24 the node ceiling is not what binds — positions reach a genuine depth 24 under
+the cap — and a larger transposition table does nothing (24MB against 128MB came
+out 22.6s against 24.8s).
 
 On a tactical game checked move by move against a uniform depth-18 search,
 every mistake, blunder, missed win and brilliancy came out identical.
