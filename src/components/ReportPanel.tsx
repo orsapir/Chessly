@@ -19,17 +19,34 @@ export function ReportPanel({ report, whiteName, blackName, onSelect }: Props) {
   return (
     <div className="report">
       <div className="accuracy-row">
-        {(['white', 'black'] as const).map((color) => (
-          <div className={`accuracy-card ${color}`} key={color}>
-            <span className="accuracy-name">{color === 'white' ? whiteName : blackName}</span>
-            <span className="accuracy-value">{report[color].accuracy.toFixed(1)}</span>
-            <span className="accuracy-caption">accuracy</span>
-            <span className="accuracy-sub">
-              {report[color].acpl} avg. centipawn loss
-              {report[color].estimatedRating ? ` · ~${report[color].estimatedRating} level` : ''}
-            </span>
-          </div>
-        ))}
+        {(['white', 'black'] as const).map((color) => {
+          const player = report[color]
+          return (
+            <div className={`accuracy-card ${color}`} key={color}>
+              <span className="accuracy-name">{color === 'white' ? whiteName : blackName}</span>
+              <span className="accuracy-value">{player.accuracy.toFixed(1)}</span>
+              <span className="accuracy-caption">accuracy</span>
+              <dl className="player-stats">
+                <div>
+                  <dt>Est. rating</dt>
+                  <dd
+                    title={
+                      player.estimatedRating
+                        ? `Implied by how this game was played, from ${player.decidedMoves} real decisions`
+                        : 'Too few decisions in this game to put a number on it'
+                    }
+                  >
+                    {player.estimatedRating ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Avg. loss</dt>
+                  <dd title="Average centipawn loss per decision">{player.acpl}</dd>
+                </div>
+              </dl>
+            </div>
+          )
+        })}
       </div>
 
       <table className="counts">
@@ -54,6 +71,13 @@ export function ReportPanel({ report, whiteName, blackName, onSelect }: Props) {
           })}
         </tbody>
       </table>
+
+      {(report.white.estimatedRating === null || report.black.estimatedRating === null) && (
+        <p className="muted small no-turning">
+          A rating needs more of a game to stand on: this one had too few moves that were a real
+          decision rather than opening theory or a forced reply.
+        </p>
+      )}
 
       {turning.length === 0 && (
         <p className="muted small no-turning">

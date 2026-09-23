@@ -64,6 +64,16 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
         onChange={(event) => commit(Number(event.target.value), 400)}
       />
 
+      {disabled && (
+        <p className="depth-locked">
+          <span className="depth-lock-dot" />
+          <span>
+            Locked while the engine is working. Press <strong>Stop</strong> under the board to
+            change the depth.
+          </span>
+        </p>
+      )}
+
       <p className="depth-note">
         {twoPass ? (
           <>
@@ -86,10 +96,12 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
  * cores, less.
  */
 function estimate(depth: number): string {
-  if (depth <= 12) return 'A few seconds a game; about double on a phone.'
-  if (depth <= 15) return 'Ten seconds or so a game; about double on a phone.'
-  if (depth <= 17) return 'Fifteen seconds or so a game; about double on a phone.'
-  if (depth <= 18) return 'Twenty to thirty seconds a game; about double on a phone.'
-  if (depth <= 20) return 'About a minute a game, and longer on a phone.'
-  return 'Several minutes — for one game you care about, not for twenty.'
+  const phone = ' Roughly double on a phone.'
+  if (depth <= 12) return `A few seconds a game.${phone}`
+  if (depth <= 15) return `Ten seconds or so a game.${phone}`
+  if (depth <= 17) return `Fifteen seconds or so a game.${phone}`
+  if (depth <= 18) return `Twenty to thirty seconds a game.${phone}`
+  if (depth <= 20) return `About a minute a game.${phone}`
+  if (depth <= 22) return `Two minutes or so a game.${phone}`
+  return `Around three minutes a game.${phone} For one game you care about, not for twenty.`
 }

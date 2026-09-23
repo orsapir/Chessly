@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js'
 import type { Analyser } from './engine'
 import {
+  BRILLIANT_SACRIFICE,
   CLASSIFICATION_ORDER,
   classify,
   cpOf,
@@ -100,6 +101,30 @@ export interface AnalyzeOptions {
   shouldStop?: () => boolean
 }
 
+/**
+ * Whether a brilliancy is even on the table here, by the same standing tests
+ * the classifier applies - loose enough to absorb the shallow pass's noise.
+ */
+function couldBeBrilliant(winBefore: number, winAfter: number): boolean {
+  return winAfter >= 45 && winBefore < 95 && winBefore > 5
+}
+
+/**
+ * Static exchange evaluation is not free and every move is asked about twice -
+ * once when choosing what to search deeply, once when describing it.
+ */
+const sacrificeCache = new Map<string, number>()
+
+function sacrificeAt(move: ParsedGame['moves'][number], ply: number): number {
+  const key = `${ply}:${move.uci}`
+  let value = sacrificeCache.get(key)
+  if (value === undefined) {
+    value = sacrificeValue(move.fenBefore, move.uci)
+    sacrificeCache.set(key, value)
+  }
+  return value
+}
+
 /** Book plies are shallow: nobody needs depth 20 to confirm 1. e4 is playable. */
 const BOOK_SEARCH_DEPTH = 10
 
@@ -135,6 +160,7 @@ export async function analyzeGame(
 ): Promise<GameReport> {
   const { settings = settingsFor(18), onProgress, shouldStop } = options
   const game = parseGame(pgn)
+  sacrificeCache.clear()
   const sans = game.moves.map((move) => move.san)
 
   // How far theory reaches, so those positions can be searched shallowly.
@@ -195,14 +221,26 @@ export async function analyzeGame(
   // together, so a verdict never compares a shallow evaluation against a deep
   // one.
   if (settings.scanDepth < settings.depth) {
-    const candidates = game.moves
-      .map((move, ply) => ({ ply, weight: closerLookWeight(move, ply, scan, sans) }))
-      .filter((candidate) => candidate.weight > 0)
-      .sort((a, b) => b.weight - a.weight)
+    const candidates = game.moves.map((move, ply) => ({
+      ply,
+      ...closerLookWeight(move, ply, scan, sans),
+    }))
+
+    const wanted = new Set<number>()
+    // A move that offers material is the one case where the shallow pass is
+    // least to be trusted and the label at stake - brilliant - is the one
+    // nobody wants quietly dropped. These go in whatever the budget says.
+    for (const { ply, sacrifice } of candidates) {
+      if (!sacrifice) continue
+      wanted.add(ply)
+      wanted.add(ply + 1)
+    }
 
     const budget = Math.max(2, Math.round(total * DEEP_PASS_BUDGET))
-    const wanted = new Set<number>()
-    for (const { ply } of candidates) {
+    const ranked = candidates
+      .filter((candidate) => candidate.weight > 0 && !candidate.sacrifice)
+      .sort((a, b) => b.weight - a.weight)
+    for (const { ply } of ranked) {
       if (wanted.size >= budget) break
       wanted.add(ply)
       wanted.add(ply + 1)
@@ -254,37 +292,49 @@ function comparable(before: PositionEval | null, after: PositionEval | null): bo
 
 /**
  * How badly a move wants a full-depth search, judged from the shallow scan.
- * Zero means leave it alone. Larger means look here first: what a player most
- * wants explained is what cost them the most.
+ * `weight` orders the queue - what a player most wants explained is what cost
+ * them the most - while `sacrifice` marks the moves that skip the queue.
  */
 function closerLookWeight(
   move: ParsedGame['moves'][number],
   ply: number,
   scan: (PositionEval | null)[],
   sans: string[],
-): number {
-  if (lookupBook(sans.slice(0, ply + 1)).inBook) return 0
+): { weight: number; sacrifice: boolean } {
+  if (lookupBook(sans.slice(0, ply + 1)).inBook) return { weight: 0, sacrifice: false }
 
   const before = scan[ply]
   const after = scan[ply + 1]
   const bestScore = before?.lines[0]?.score
   const playedScore = after?.lines[0]?.score
   // No usable scan for this move: treat it as worth a proper look.
-  if (!bestScore || !playedScore) return 100
+  if (!bestScore || !playedScore) return { weight: 100, sacrifice: false }
 
   const winBefore = winPercent(bestScore, move.color)
   const playedBest = before?.lines[0]?.pv[0] === move.uci
   const loss = playedBest ? 0 : Math.max(0, winBefore - winPercent(playedScore, move.color))
-  if (loss >= CLOSER_LOOK_LOSS) return loss
+
+  // Material offered, the shallow search saw nothing wrong with it, and the
+  // game is live enough for the move to be brilliant: only depth can say
+  // whether it is that or a blunder. Screening on the brilliance conditions
+  // first keeps this from dragging in every loose piece in a won position -
+  // and keeps the expensive exchange evaluation off most moves.
+  const winAfter = playedBest ? winBefore : winPercent(playedScore, move.color)
+  if (
+    loss <= 2 &&
+    couldBeBrilliant(winBefore, winAfter) &&
+    sacrificeAt(move, ply) >= BRILLIANT_SACRIFICE
+  ) {
+    return { weight: 100, sacrifice: true }
+  }
+
+  if (loss >= CLOSER_LOOK_LOSS) return { weight: loss, sacrifice: false }
 
   const second = before?.lines[1]
   const gap = second ? winBefore - winPercent(second.score, move.color) : 0
-  if (gap >= CLOSER_LOOK_GAP) return CLOSER_LOOK_LOSS + gap / 10
+  if (gap >= CLOSER_LOOK_GAP) return { weight: CLOSER_LOOK_LOSS + gap / 10, sacrifice: false }
 
-  // A material offer the scan rated fine is exactly the kind of move a shallow
-  // search gets wrong, so it is worth confirming - but it is not an error, so
-  // it queues behind anything that actually cost something.
-  return sacrificeValue(move.fenBefore, move.uci) >= 180 ? CLOSER_LOOK_LOSS / 2 : 0
+  return { weight: 0, sacrifice: false }
 }
 
 export class AnalysisAborted extends Error {
@@ -352,7 +402,7 @@ function describeMove({ move, ply, before, after, sans, onlyMove }: DescribeInpu
   const legalMoveCount = new Chess(move.fenBefore).moves().length
 
   // Only worth the work when the move is good enough to be brilliant.
-  const sacrifice = loss <= 2 && !inBook ? sacrificeValue(move.fenBefore, move.uci) : 0
+  const sacrifice = loss <= 2 && !inBook ? sacrificeAt(move, ply) : 0
 
   const classification = classify({
     winBefore,

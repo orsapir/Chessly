@@ -240,8 +240,10 @@ function AnalysisProgress({
         <div className="progress-fill" style={{ width: `${share}%` }} />
       </div>
       <span className="analysing-count">
-        {progress.done} of {progress.total} positions · depth{' '}
-        {scanning ? settings.scanDepth : settings.depth}
+        {progress.total > 1
+          ? `${progress.done} of ${progress.total} positions`
+          : 'Starting the engine'}{' '}
+        · depth {scanning ? settings.scanDepth : settings.depth}
       </span>
     </div>
   )

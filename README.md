@@ -82,13 +82,26 @@ Three things keep it quick, each measured rather than assumed:
   tenth of the positions in a game were taking half the total time; their
   verdicts barely move.
 
+One exception overrides the cap: a move that offers material, which the shallow
+pass rated as fine and which came from a position still live enough to be
+brilliant, always gets the full-depth search. There are only a handful per game
+(nine in the 45-move game below) but they are the most expensive positions to
+search, and judging them shallowly is how a brilliancy gets quietly recorded as
+an ordinary move.
+
 Measured on one 45-move game, four-core laptop, three engines:
 
 | depth | before this work | now |
 | --- | --- | --- |
 | 14 | 13.2s | 11.9s |
 | 16 | 33.9s | 12.7s |
-| 18 | 49.1s | 22.3s |
+| 18 | 49.1s | 32.2s |
+| 20 | — | 62.3s |
+| 24 | — | 175.8s |
+
+Depth 18 gave up about ten of those seconds when sacrifices were promoted past
+the cap, which is what it costs to have brilliancies found rather than guessed
+at.
 
 On a tactical game checked move by move against a uniform depth-18 search,
 every mistake, blunder, missed win and brilliancy came out identical.

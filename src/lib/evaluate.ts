@@ -118,6 +118,9 @@ export const CLASSIFICATION_ORDER: Classification[] = [
   'blunder',
 ]
 
+/** Material, in centipawns, a move must give up before it can be brilliant. */
+export const BRILLIANT_SACRIFICE = 180
+
 /** Losing / unclear / winning, as far as a human would describe the position. */
 export function standing(win: number): 0 | 1 | 2 {
   if (win < 35) return 0
@@ -146,7 +149,7 @@ export function classify(input: ClassifyInput): Classification {
   // Giving material back while already completely winning is technique, not
   // brilliance, so a player who was crushing beforehand does not qualify.
   if (
-    input.sacrifice >= 180 &&
+    input.sacrifice >= BRILLIANT_SACRIFICE &&
     loss <= 2 &&
     input.winAfter >= 50 &&
     input.winBefore < 92 &&
