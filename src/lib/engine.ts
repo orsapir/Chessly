@@ -1,7 +1,13 @@
 import type { EngineLine, PositionEval, Score } from './types'
 
-const BASE = import.meta.env.BASE_URL || '/'
-const ENGINE_URL = `${BASE}engine/stockfish-19-lite-single.js`
+/**
+ * Resolved when a worker is started rather than at import, so the module can
+ * be loaded outside Vite - by the tests, among others.
+ */
+function engineUrl(): string {
+  const base = (import.meta.env as ImportMetaEnv | undefined)?.BASE_URL || '/'
+  return `${base}engine/stockfish-19-lite-single.js`
+}
 
 /**
  * Anything that can evaluate a position. A game is a few dozen independent
@@ -46,13 +52,13 @@ export class Engine implements Analyser {
   private async boot(): Promise<void> {
     if (this.ready) return this.ready
     this.ready = (async () => {
-      this.worker = new Worker(ENGINE_URL)
+      this.worker = new Worker(engineUrl())
       this.worker.onmessage = (event: MessageEvent) => {
         const line = typeof event.data === 'string' ? event.data : String(event.data?.data ?? '')
         for (const listener of this.listeners) listener(line)
       }
       await this.command('uci', (line) => line === 'uciok')
-      this.send(`setoption name Hash value ${lowMemory() ? 16 : 24}`)
+      this.send(`setoption name Hash value ${hashSizeMb()}`)
       this.send('setoption name UCI_AnalyseMode value true')
       await this.command('isready', (line) => line === 'readyok')
     })()
@@ -149,30 +155,45 @@ export class Engine implements Analyser {
   }
 }
 
-/** Phones and small laptops report 4GB or less; each engine keeps its own heap. */
-function lowMemory(): boolean {
-  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
-  return typeof memory === 'number' && memory <= 4
-}
-
-/** A phone or tablet: worth a lower ceiling than a desktop, but not a crippled one. */
-export function handheld(): boolean {
-  return (
-    typeof matchMedia === 'function' &&
-    matchMedia('(pointer: coarse)').matches &&
-    Math.min(screen.width, screen.height) < 900
-  )
+/** Hash per engine. Bigger is not better here - see the note in the README. */
+function hashSizeMb(): number {
+  const memory = deviceMemoryGb()
+  return memory !== undefined && memory <= 4 ? 16 : 24
 }
 
 /**
- * How many engines to run at once. Positions are independent searches, so this
- * scales almost linearly - the limits are leaving the device usable and not
- * allocating a hash table per core.
+ * Most engines worth running at once. Past this the gain is small and the
+ * memory is not: each one holds a hash table, the network and its own stack.
  */
-export function defaultConcurrency(): number {
-  const cores = navigator.hardwareConcurrency || 2
-  const ceiling = lowMemory() ? 3 : handheld() ? 4 : 6
+const MAX_ENGINES = 8
+
+/** How much memory the browser admits to, in GB; Safari does not say. */
+function deviceMemoryGb(): number | undefined {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  return typeof memory === 'number' ? memory : undefined
+}
+
+/**
+ * How many engines to run, from what the browser will say about the device.
+ *
+ * Positions are independent searches, so this scales almost linearly, and the
+ * limit that matters is memory rather than whether the thing is a phone: a
+ * recent flagship has more cores and more RAM than plenty of laptops, and
+ * capping it at four for being handheld left half its cores idle. One core is
+ * always left over so the page itself stays responsive.
+ *
+ * Browsers round `deviceMemory` down to a power of two and stop at 8, so a
+ * 12GB phone reports 8. Treat a missing value as mid-range rather than low:
+ * Safari never reports it, and iPhones are not short of either resource.
+ */
+export function concurrencyFor(cores: number, memoryGb: number | undefined): number {
+  const ceiling =
+    memoryGb === undefined ? 5 : memoryGb <= 2 ? 2 : memoryGb <= 4 ? 3 : MAX_ENGINES
   return Math.max(1, Math.min(ceiling, cores - 1))
+}
+
+export function defaultConcurrency(): number {
+  return concurrencyFor(navigator.hardwareConcurrency || 2, deviceMemoryGb())
 }
 
 /** Several engines sharing the work, one position at a time each. */
