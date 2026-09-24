@@ -12,6 +12,7 @@ type View =
 
 const LAST_USER = 'chessly:last-user'
 const LAST_DEPTH = 'chessly:depth'
+const LAST_EXHAUSTIVE = 'chessly:exhaustive'
 
 /** What a game is analysed at until the slider says otherwise. */
 const DEFAULT_DEPTH = 24
@@ -24,11 +25,17 @@ export default function App() {
   const [depth, setDepth] = useState<number>(
     () => settingsFor(Number(readItem(LAST_DEPTH)) || DEFAULT_DEPTH).depth,
   )
+  const [exhaustive, setExhaustive] = useState<boolean>(() => readItem(LAST_EXHAUSTIVE) === 'on')
 
   const chooseDepth = (next: number) => {
     const settled = settingsFor(next).depth
     setDepth(settled)
     writeItem(LAST_DEPTH, String(settled))
+  }
+
+  const chooseExhaustive = (next: boolean) => {
+    setExhaustive(next)
+    writeItem(LAST_EXHAUSTIVE, next ? 'on' : 'off')
   }
 
   const openUser = (username: string) => {
@@ -88,6 +95,8 @@ export default function App() {
             game={view.game}
             depth={depth}
             onDepthChange={chooseDepth}
+            exhaustive={exhaustive}
+            onExhaustiveChange={chooseExhaustive}
             onBack={() => setView(view.from)}
           />
         )}

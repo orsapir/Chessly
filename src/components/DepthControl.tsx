@@ -4,6 +4,8 @@ import { MAX_DEPTH, MIN_DEPTH, PRESETS, settingsFor } from '../lib/analyze'
 interface Props {
   depth: number
   onChange: (depth: number) => void
+  exhaustive: boolean
+  onExhaustiveChange: (exhaustive: boolean) => void
   disabled?: boolean
 }
 
@@ -12,7 +14,13 @@ interface Props {
  * and being sure. The line underneath says exactly what the chosen number buys,
  * including the fact that high depths are spent on the moves that matter.
  */
-export function DepthControl({ depth, onChange, disabled }: Props) {
+export function DepthControl({
+  depth,
+  onChange,
+  exhaustive,
+  onExhaustiveChange,
+  disabled,
+}: Props) {
   // The slider reads live, but dragging across a dozen values must not start a
   // dozen analyses: the number the caller sees settles once the drag stops.
   const [dragging, setDragging] = useState<number | null>(null)
@@ -29,7 +37,7 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
     }, delay)
   }
 
-  const settings = settingsFor(dragging ?? depth)
+  const settings = settingsFor(dragging ?? depth, exhaustive)
   const twoPass = settings.scanDepth < settings.depth
 
   return (
@@ -64,6 +72,22 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
         onChange={(event) => commit(Number(event.target.value), 400)}
       />
 
+      <label className={`exhaustive${exhaustive ? ' on' : ''}`}>
+        <input
+          type="checkbox"
+          checked={exhaustive}
+          disabled={disabled}
+          onChange={(event) => onExhaustiveChange(event.target.checked)}
+        />
+        <span>
+          <strong>Full analysis</strong>
+          <span className="exhaustive-note">
+            Search every move to depth {settings.depth}, with nothing skimmed. Several times
+            slower.
+          </span>
+        </span>
+      </label>
+
       {disabled && (
         <p className="depth-locked">
           <span className="depth-lock-dot" />
@@ -84,7 +108,7 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
         ) : (
           <>Every move searched to depth {settings.depth}.</>
         )}{' '}
-        {estimate(settings.depth)}
+        {estimate(settings.depth, exhaustive)}
       </p>
     </div>
   )
@@ -95,8 +119,14 @@ export function DepthControl({ depth, onChange, disabled }: Props) {
  * three engines. A phone takes roughly twice as long; a desktop with more
  * cores, less.
  */
-function estimate(depth: number): string {
+function estimate(depth: number, exhaustive: boolean): string {
   const phone = ' Roughly double on a phone.'
+  if (exhaustive) {
+    if (depth <= 12) return `Under a minute a game.${phone}`
+    if (depth <= 16) return `A couple of minutes a game.${phone}`
+    if (depth <= 20) return `Five minutes or more a game.${phone}`
+    return `The best part of ten minutes a game.${phone} Start it and go and do something else.`
+  }
   if (depth <= 12) return `A few seconds a game.${phone}`
   if (depth <= 15) return `Ten seconds or so a game.${phone}`
   if (depth <= 17) return `Fifteen seconds or so a game.${phone}`

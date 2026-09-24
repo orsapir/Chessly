@@ -27,6 +27,8 @@ interface Props {
   game: GameMeta
   depth: number
   onDepthChange: (depth: number) => void
+  exhaustive: boolean
+  onExhaustiveChange: (exhaustive: boolean) => void
   onBack: () => void
 }
 
@@ -35,8 +37,15 @@ const START_SCORE: Score = { cp: 20, mate: null }
 /** Fast enough to follow a game, slow enough to read each move. */
 const PLAY_INTERVAL = 900
 
-export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
-  const settings = useMemo(() => settingsFor(depth), [depth])
+export function AnalysisView({
+  game,
+  depth,
+  onDepthChange,
+  exhaustive,
+  onExhaustiveChange,
+  onBack,
+}: Props) {
+  const settings = useMemo(() => settingsFor(depth, exhaustive), [depth, exhaustive])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
   const { report, running, progress, error, fromCache, run, cancel } = useAnalysis()
 
@@ -231,7 +240,13 @@ export function AnalysisView({ game, depth, onDepthChange, onBack }: Props) {
             </div>
           </div>
 
-          <DepthControl depth={depth} onChange={onDepthChange} disabled={running} />
+          <DepthControl
+            depth={depth}
+            onChange={onDepthChange}
+            exhaustive={exhaustive}
+            onExhaustiveChange={onExhaustiveChange}
+            disabled={running}
+          />
 
           {error && <p className="error">{error}</p>}
 

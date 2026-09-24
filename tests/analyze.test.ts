@@ -122,3 +122,25 @@ test('a uniform run searches every position once at the chosen depth', async () 
   assert.ok(asked.every((call) => call.depth <= 12))
   assert.ok(asked.some((call) => call.depth === 12))
 })
+
+test('full analysis gives every position the chosen depth', async () => {
+  const { asked, engine } = stubEngine(9)
+  const { positions } = parseGame(PGN)
+
+  // The two-pass form scans shallow first and only deepens some of the game.
+  const twoPass = settingsFor(20)
+  assert.equal(twoPass.scanDepth, 12)
+
+  // Asked for exhaustively, there is one pass and it is the full depth.
+  const full = settingsFor(20, true)
+  assert.deepEqual(full, { depth: 20, scanDepth: 20 })
+  assert.equal(settingsKey(full), 'd20', 'the two modes must cache separately')
+
+  await analyzeGame(PGN, engine, { settings: full })
+  assert.equal(asked.length, positions.length, 'every position searched exactly once')
+  const outsideBook = asked.filter((call) => call.index >= 6)
+  assert.ok(
+    outsideBook.every((call) => call.depth === 20),
+    'nothing outside the book is skimmed',
+  )
+})

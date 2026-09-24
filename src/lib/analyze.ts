@@ -79,11 +79,18 @@ const MAX_SCAN_DEPTH = 12
 /** Below this, a uniform search is cheap enough that two passes are pointless. */
 const TWO_PASS_FROM = 15
 
-export function settingsFor(depth: number): AnalysisSettings {
+/**
+ * `exhaustive` gives every position the full depth instead of scanning first
+ * and going deep only where it counts. It is the slow, literal reading of the
+ * depth setting: several times the work, and the only mode in which "every
+ * move at depth N" is a true statement.
+ */
+export function settingsFor(depth: number, exhaustive = false): AnalysisSettings {
   const clamped = Math.round(Math.max(MIN_DEPTH, Math.min(MAX_DEPTH, depth)))
+  const twoPass = clamped >= TWO_PASS_FROM && !exhaustive
   return {
     depth: clamped,
-    scanDepth: clamped >= TWO_PASS_FROM ? Math.min(MAX_SCAN_DEPTH, clamped - 3) : clamped,
+    scanDepth: twoPass ? Math.min(MAX_SCAN_DEPTH, clamped - 3) : clamped,
   }
 }
 
