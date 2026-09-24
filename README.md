@@ -38,8 +38,14 @@ to `main` or the working branch. Turn it on once under *Settings → Pages →
 Source: GitHub Actions*; the site then lives at
 `https://<user>.github.io/<repo>/` and works on any phone.
 
-**Any static host.** `npm run build`, then upload the `dist/` folder — Netlify
-Drop, Cloudflare Pages, Vercel, S3, a Raspberry Pi. No server-side anything.
+**Netlify**, for a shorter address than a Pages project path. `netlify.toml`
+holds the build settings, so *Add new site → Import an existing project* and
+picking this repository is the whole setup; the site name decides the
+`*.netlify.app` subdomain, and a custom domain can be pointed at it later.
+
+**Any other static host.** `npm run build`, then upload the `dist/` folder —
+Netlify Drop, Cloudflare Pages, Vercel, S3, a Raspberry Pi. No server-side
+anything.
 
 **Straight off your laptop, same Wi-Fi.** `npm run dev -- --host` prints a
 `Network:` URL like `http://192.168.1.20:5173/`. Open that on your phone.

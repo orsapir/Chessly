@@ -1,0 +1,23 @@
+# Netlify picks this up automatically when the repository is connected, so the
+# site needs no settings filled in by hand.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # The build runs tsc and Vite 8; both want a current Node.
+  NODE_VERSION = "22"
+
+# Vite fingerprints these filenames, so a new build never reuses an old name.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The engine is 1.8 MB and carries its version in the filename. Worth keeping
+# out of the download path on every visit, without claiming it is immutable.
+[[headers]]
+  for = "/engine/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
