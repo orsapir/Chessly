@@ -122,10 +122,12 @@ export function DepthControl({
 function estimate(depth: number, exhaustive: boolean): string {
   const phone = ' Roughly double on a phone.'
   if (exhaustive) {
-    if (depth <= 12) return `Under a minute a game.${phone}`
-    if (depth <= 16) return `A couple of minutes a game.${phone}`
-    if (depth <= 20) return `Five minutes or more a game.${phone}`
-    return `The best part of ten minutes a game.${phone} Start it and go and do something else.`
+    if (depth <= 12) return `Ten seconds or so a game.${phone}`
+    if (depth <= 16) return `Half a minute a game.${phone}`
+    if (depth <= 18) return `A minute or so a game.${phone}`
+    if (depth <= 20) return `Two minutes or so a game.${phone}`
+    if (depth <= 22) return `Around four minutes a game.${phone}`
+    return `Around six minutes a game.${phone} Start it and go and do something else.`
   }
   if (depth <= 12) return `A few seconds a game.${phone}`
   if (depth <= 15) return `Ten seconds or so a game.${phone}`

@@ -113,6 +113,11 @@ Two things that sound like they should help and do not, both measured: at depth
 the cap — and a larger transposition table does nothing (24MB against 128MB came
 out 22.6s against 24.8s).
 
+**Full analysis** turns the two passes off and gives every position the depth on
+the slider. It is the only mode in which "every move at depth 24" describes the
+report, and it costs what that implies: the same 45-move game takes 26s at depth
+16 and 347s at depth 24, against 12.7s and 66.3s for the two-pass form.
+
 On a tactical game checked move by move against a uniform depth-18 search,
 every mistake, blunder, missed win and brilliancy came out identical.
 
