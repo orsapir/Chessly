@@ -108,10 +108,14 @@ Measured on one 45-move game, four-core laptop, three engines:
 when sacrifices were promoted past the cap, which is what it costs to have
 brilliancies found rather than guessed at.
 
-Two things that sound like they should help and do not, both measured: at depth
-24 the node ceiling is not what binds — positions reach a genuine depth 24 under
-the cap — and a larger transposition table does nothing (24MB against 128MB came
-out 22.6s against 24.8s).
+Two things that sound like they should help and do not, both measured. At depth
+24 the node ceiling is not what binds: positions reach a genuine depth 24 under
+the cap. And a larger transposition table is worse, not merely useless — 30
+consecutive positions from one game took 30.8s and 30.4s at 24MB against 32.2s
+at 96MB, where repeating the 24MB run puts the noise at about half a second. A
+table that size stops fitting the CPU's cache and these searches never need the
+extra room. The engine pool therefore spends a device's cores, which scale
+almost linearly, and ignores its memory beyond what the engines need to exist.
 
 **Full analysis** turns the two passes off and gives every position the depth on
 the slider. It is the only mode in which "every move at depth 24" describes the
