@@ -95,9 +95,14 @@ console.log('after blitz filter:', await page.locator('.game-row').count())
 await page.locator('.segmented button', { hasText: 'All' }).click()
 
 await page.locator('.game-row').nth(2).click()
-// Accuracy shows beside the players as soon as the report lands; the cards
-// themselves live behind the Report tab, which is no longer the default.
+// Accuracy shows beside the players as soon as the scan has an answer; the
+// cards themselves live behind the Report tab, which is no longer the default.
 await page.waitForSelector('.player-accuracy', { timeout: 120000 })
+// That first report is the preliminary one. Leaving now would cancel the run
+// before it caches anything, so wait for the progress block to go.
+await page.waitForFunction(() => !document.querySelector('.comment.analysing'), null, {
+  timeout: 300000,
+})
 await page.getByRole('button', { name: 'Report' }).click()
 await page.waitForSelector('.accuracy-value', { timeout: 10000 })
 console.log('board orientation flipped for black hero:', await page.evaluate(() => document.querySelector('.coords .on-dark')?.textContent))
@@ -111,7 +116,7 @@ console.log('back to list ok')
 // Cached revisit should skip the progress bar entirely.
 await page.locator('.game-row').nth(2).click()
 await page.waitForSelector('.player-accuracy', { timeout: 5000 })
-console.log('cached revisit instant:', !(await page.locator('.progress').count()))
+console.log('cached revisit instant:', !(await page.locator('.comment.analysing').count()))
 
 await page.setViewportSize({ width: 430, height: 900 })
 await page.waitForTimeout(400)
