@@ -1,17 +1,37 @@
-import { formatScore, winPercent } from '../lib/evaluate'
+import { formatScore, formatScoreCompact, winPercent } from '../lib/evaluate'
 import type { Color, Score } from '../lib/types'
 
-/** The vertical white/black bar beside the board. */
-export function EvalBar({ score, orientation }: { score: Score; orientation: Color }) {
+interface Props {
+  score: Score
+  orientation: Color
+  /** Dimmed while the number is still the shallow pass's guess. */
+  provisional?: boolean
+}
+
+/**
+ * The bar beside the board: white below, black above, and the boundary between
+ * them is the evaluation. It is split by win percentage rather than raw
+ * centipawns, so a queen up and a rook up both read as "winning" instead of
+ * pinning the bar at the same place.
+ */
+export function EvalBar({ score, orientation, provisional }: Props) {
   const white = winPercent(score, 'white')
-  const share = orientation === 'white' ? white : 100 - white
-  const label = formatScore(score, 'white')
-  const leader = white >= 50 ? 'white' : 'black'
+  // Whichever colour is at the bottom of the board is at the bottom of the bar.
+  const bottomIsWhite = orientation === 'white'
+  const bottomShare = bottomIsWhite ? white : 100 - white
+  const label = formatScoreCompact(score, 'white')
+  const exact = formatScore(score, 'white')
 
   return (
-    <div className="eval-bar" title={`${label} for White`}>
-      <div className={`eval-fill eval-${orientation}`} style={{ height: `${share}%` }} />
-      <span className={`eval-label eval-label-${leader === orientation ? 'near' : 'far'}`}>{label}</span>
+    <div
+      className={`eval-bar${bottomIsWhite ? '' : ' flipped'}${provisional ? ' provisional' : ''}`}
+      title={`${exact} for White`}
+      role="img"
+      aria-label={`Evaluation ${exact} for White`}
+    >
+      <div className="eval-fill" style={{ height: `${bottomShare}%` }} />
+      <span className="eval-middle" />
+      <span className="eval-label">{label}</span>
     </div>
   )
 }

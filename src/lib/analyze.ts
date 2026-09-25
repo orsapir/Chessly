@@ -104,6 +104,17 @@ export type Phase = 'scan' | 'deep'
 export interface AnalyzeOptions {
   settings?: AnalysisSettings
   onProgress?: (done: number, total: number, phase: Phase) => void
+  /**
+   * Each position as its search lands, so the board can show a score long
+   * before the whole game is done.
+   */
+  onPosition?: (index: number, evaluation: PositionEval) => void
+  /**
+   * The shallow pass's complete answer, handed over before the deep pass
+   * starts. Everything is there - verdicts, accuracy, the graph - it is
+   * simply less certain than what follows.
+   */
+  onPreliminary?: (report: GameReport) => void
   /** Return true to abort partway through. */
   shouldStop?: () => boolean
 }
@@ -179,7 +190,7 @@ export async function analyzeGame(
   engine: Analyser,
   options: AnalyzeOptions = {},
 ): Promise<GameReport> {
-  const { settings = settingsFor(18), onProgress, shouldStop } = options
+  const { settings = settingsFor(18), onProgress, onPosition, onPreliminary, shouldStop } = options
   const game = parseGame(pgn)
   sacrificeCache.clear()
   const sans = game.moves.map((move) => move.san)
@@ -223,6 +234,7 @@ export async function analyzeGame(
             maxTimeMs: 30000,
           })
         }
+        onPosition?.(index, into[index] as PositionEval)
         onProgress?.(++done, indices.length, phase)
       }
     }
@@ -235,6 +247,38 @@ export async function analyzeGame(
   // what tells us whether a move was the only one that held.
   const everyPosition = Array.from({ length: total }, (_, index) => index)
   await search(everyPosition, settings.scanDepth, scan, 'scan', 2)
+
+  const assemble = (preliminary: boolean): GameReport => {
+    const moves: AnalyzedMove[] = game.moves.map((move, ply) => {
+      // Use the deep pass only where it covers both ends of the move at the
+      // same depth. Anything else would compare a deep evaluation against a
+      // shallow one, which is how a quiet move ends up labelled a blunder.
+      const useDeep = comparable(deep[ply], deep[ply + 1])
+      const before = (useDeep ? deep[ply] : scan[ply]) ?? null
+      const after = (useDeep ? deep[ply + 1] : scan[ply + 1]) ?? null
+      return describeMove({ move, ply, before, after, sans, onlyMove: onlyMoveAt(scan[ply], move.color) })
+    })
+
+    return {
+      moves,
+      white: summarize(moves, 'white'),
+      black: summarize(moves, 'black'),
+      opening: detectOpening(sans),
+      turningPoints: moves
+        .filter((candidate) => candidate.loss >= 10)
+        .sort((a, b) => b.loss - a.loss)
+        .slice(0, 3)
+        .map((candidate) => candidate.ply),
+      settings,
+      preliminary: preliminary || undefined,
+      engine: engine.name,
+      analyzedAt: Date.now(),
+    }
+  }
+
+  // Hand over the shallow verdict now: on a deep setting the second pass is
+  // most of the wait, and a report that sharpens beats a spinner.
+  if (settings.scanDepth < settings.depth) onPreliminary?.(assemble(true))
 
   // Second pass: only where the scan saw something worth being sure about,
   // most significant first and bounded, so this never costs more than simply
@@ -274,30 +318,7 @@ export async function analyzeGame(
     if (indices.length) await search(indices, settings.depth, deep, 'deep', 1)
   }
 
-  const moves: AnalyzedMove[] = game.moves.map((move, ply) => {
-    // Use the deep pass only where it covers both ends of the move at the same
-    // depth. Anything else would compare a deep evaluation against a shallow
-    // one, which is how a quiet move ends up labelled a blunder.
-    const useDeep = comparable(deep[ply], deep[ply + 1])
-    const before = (useDeep ? deep[ply] : scan[ply]) ?? null
-    const after = (useDeep ? deep[ply + 1] : scan[ply + 1]) ?? null
-    return describeMove({ move, ply, before, after, sans, onlyMove: onlyMoveAt(scan[ply], move.color) })
-  })
-
-  return {
-    moves,
-    white: summarize(moves, 'white'),
-    black: summarize(moves, 'black'),
-    opening: detectOpening(sans),
-    turningPoints: moves
-      .filter((move) => move.loss >= 10)
-      .sort((a, b) => b.loss - a.loss)
-      .slice(0, 3)
-      .map((move) => move.ply),
-    settings,
-    engine: engine.name,
-    analyzedAt: Date.now(),
-  }
+  return assemble(false)
 }
 
 /**

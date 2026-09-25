@@ -96,6 +96,8 @@ export interface GameReport {
   /** Plies where the evaluation swung the most, biggest first. */
   turningPoints: number[]
   settings: { depth: number; scanDepth: number }
+  /** True while this is the shallow pass's answer and the deep pass is still running. */
+  preliminary?: boolean
   engine: string
   analyzedAt: number
 }

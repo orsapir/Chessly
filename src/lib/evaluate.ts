@@ -39,6 +39,16 @@ export function formatScore(score: Score, color: Color = 'white'): string {
   return `${pawns >= 0 ? '+' : '−'}${Math.abs(pawns).toFixed(2)}`
 }
 
+/**
+ * The same score with one decimal instead of two, for the narrow bar beside
+ * the board where "+0.72" does not fit and the second digit says nothing.
+ */
+export function formatScoreCompact(score: Score, color: Color = 'white'): string {
+  if (score.mate !== null) return formatScore(score, color)
+  const pawns = (color === 'white' ? score.cp : -score.cp) / 100
+  return `${pawns >= 0 ? '+' : '−'}${Math.abs(pawns).toFixed(1)}`
+}
+
 /** Per-move accuracy from the win% given up, 0-100 (Lichess's curve). */
 export function moveAccuracy(loss: number): number {
   const accuracy = 103.1668 * Math.exp(-0.04354 * loss) - 3.1669

@@ -5,6 +5,7 @@ import {
   classify,
   cpOf,
   formatScore,
+  formatScoreCompact,
   gameAccuracy,
   isOnlyMove,
   moveAccuracy,
@@ -135,4 +136,12 @@ test('a PGN becomes one position per ply', () => {
   assert.equal(game.moves[1].color, 'black')
   assert.equal(game.result, '1/2-1/2')
   assert.equal(game.positions[0], game.moves[0].fenBefore)
+})
+
+test('the bar label drops the second decimal but keeps mates intact', () => {
+  assert.equal(formatScoreCompact({ cp: 72, mate: null }), '+0.7')
+  assert.equal(formatScoreCompact({ cp: -1250, mate: null }), '−12.5')
+  assert.equal(formatScoreCompact({ cp: 0, mate: null }), '+0.0')
+  assert.equal(formatScoreCompact({ cp: null, mate: 3 }), 'M3')
+  assert.equal(formatScoreCompact({ cp: 72, mate: null }, 'black'), '−0.7')
 })

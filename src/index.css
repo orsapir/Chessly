@@ -9,6 +9,8 @@
   --accent-soft: #6f9f41;
   --white-piece: #f4f1ec;
   --black-piece: #403c38;
+  --eval-white: #f2efe9;
+  --eval-black: #2b2825;
   --sq-light: #eeeed2;
   --sq-dark: #769656;
   --radius: 10px;
@@ -253,28 +255,43 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 
 .eval-bar {
   position: relative;
-  width: 26px;
+  width: 30px;
   border-radius: 5px;
   overflow: hidden;
-  background: #55524e;
   flex: none;
   display: flex;
   flex-direction: column-reverse;
+  /* The far side of the bar is the container; the near side is the fill. */
+  background: var(--eval-black);
 }
-.eval-fill { width: 100%; transition: height 0.25s ease; }
-.eval-fill.eval-white { background: var(--white-piece); }
-.eval-fill.eval-black { background: #6d6864; }
+.eval-bar.flipped { background: var(--eval-white); }
+.eval-fill { width: 100%; background: var(--eval-white); transition: height 0.3s ease; }
+.eval-bar.flipped .eval-fill { background: var(--eval-black); }
+
+/* Halfway, so it is obvious how far from level the game is. */
+.eval-middle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed rgba(128, 128, 128, 0.55);
+}
+
 .eval-bar .eval-label {
   position: absolute;
   left: 0;
   right: 0;
+  bottom: 3px;
   text-align: center;
   font-size: 0.62rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: #2b2926;
 }
-.eval-label-near { bottom: 3px; color: #2b2926; }
-.eval-label-far { top: 3px; color: #e8e6e3; }
+.eval-bar.flipped .eval-label { color: #e8e6e3; }
+
+/* While the shallow pass is still the only answer. */
+.eval-bar.provisional .eval-fill { opacity: 0.82; }
 
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; justify-content: center; }
 .controls button {

@@ -2,12 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnalysisAborted, analyzeGame, settingsKey, type AnalysisSettings, type Phase } from './analyze'
 import { readReport, writeReport } from './cache'
 import { EnginePool } from './engine'
-import type { GameReport } from './types'
+import type { GameReport, Score } from './types'
 
 export interface AnalysisState {
   report: GameReport | null
   running: boolean
   progress: { done: number; total: number; phase: Phase }
+  /**
+   * Score for each position as the engine reaches it, indexed by ply. Lets the
+   * board show an evaluation for whatever move is on screen while the rest of
+   * the game is still being searched.
+   */
+  liveScores: (Score | null)[]
   error: string | null
   fromCache: boolean
 }
@@ -16,6 +22,7 @@ const IDLE: AnalysisState = {
   report: null,
   running: false,
   progress: { done: 0, total: 0, phase: 'scan' },
+  liveScores: [],
   error: null,
   fromCache: false,
 }
@@ -64,6 +71,11 @@ export function useAnalysis() {
     setState({ ...IDLE, running: true, progress: { done: 0, total: 1, phase: 'scan' } })
     pool.current ??= new EnginePool()
 
+    // Batched rather than a setState per position: a long game lands ninety of
+    // these in a few seconds and only the newest matters.
+    const scores: (Score | null)[] = []
+    let flush: ReturnType<typeof setTimeout> | null = null
+
     try {
       const report = await analyzeGame(pgn, pool.current, {
         settings,
@@ -71,12 +83,26 @@ export function useAnalysis() {
         onProgress: (done, total, phase) => {
           if (runId.current === id) setState((previous) => ({ ...previous, progress: { done, total, phase } }))
         },
+        onPosition: (index, evaluation) => {
+          if (runId.current !== id) return
+          scores[index] = evaluation.lines[0]?.score ?? null
+          flush ??= setTimeout(() => {
+            flush = null
+            if (runId.current === id) setState((previous) => ({ ...previous, liveScores: [...scores] }))
+          }, 120)
+        },
+        onPreliminary: (preliminary) => {
+          // Never cached: it is the shallow answer, and the real one follows.
+          if (runId.current === id) setState((previous) => ({ ...previous, report: preliminary }))
+        },
       })
+      if (flush) clearTimeout(flush)
       if (runId.current !== id) return null
       writeReport(gameId, key, report)
-      setState({ ...IDLE, report })
+      setState({ ...IDLE, report, liveScores: scores })
       return report
     } catch (error) {
+      if (flush) clearTimeout(flush)
       if (runId.current !== id) return null
       if (error instanceof AnalysisAborted) {
         setState(IDLE)

@@ -47,7 +47,7 @@ export function AnalysisView({
 }: Props) {
   const settings = useMemo(() => settingsFor(depth, exhaustive), [depth, exhaustive])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
-  const { report, running, progress, error, fromCache, run, cancel } = useAnalysis()
+  const { report, running, progress, liveScores, error, fromCache, run, cancel } = useAnalysis()
 
   const [ply, setPly] = useState(0)
   const [flipped, setFlipped] = useState(
@@ -138,11 +138,14 @@ export function AnalysisView({
   const analyzed = report?.moves[ply - 1] ?? null
   const orientation = flipped ? 'black' : 'white'
 
-  const score: Score = analyzed
-    ? analyzed.score
-    : report && ply === 0
-      ? report.moves[0]?.bestScore ?? START_SCORE
-      : START_SCORE
+  // Prefer a score the engine has actually returned for this position. While
+  // the game is still being searched that is the live scan result; afterwards
+  // it is the move's own evaluation.
+  const score: Score =
+    liveScores[ply] ??
+    analyzed?.score ??
+    (ply === 0 ? report?.moves[0]?.bestScore : undefined) ??
+    START_SCORE
 
   // Only nag with an arrow when the move actually cost something.
   const suggestion =
@@ -174,7 +177,11 @@ export function AnalysisView({
       <div className="analysis-body">
         <div className="board-column">
           <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-            <EvalBar score={score} orientation={orientation} />
+            <EvalBar
+              score={score}
+              orientation={orientation}
+              provisional={running || report?.preliminary === true}
+            />
             <Board
               fen={fen}
               orientation={orientation}

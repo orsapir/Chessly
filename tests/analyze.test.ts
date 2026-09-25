@@ -144,3 +144,36 @@ test('full analysis gives every position the chosen depth', async () => {
     'nothing outside the book is skimmed',
   )
 })
+
+test('positions are handed over as they land, and the scan answers before the deep pass', async () => {
+  const { engine } = stubEngine(9)
+  const seen: number[] = []
+  let preliminary: Awaited<ReturnType<typeof analyzeGame>> | null = null
+  let preliminaryAt = -1
+
+  const final = await analyzeGame(PGN, engine, {
+    settings: { depth: 20, scanDepth: 10 },
+    onPosition: (index) => seen.push(index),
+    onPreliminary: (report) => {
+      preliminary = report
+      preliminaryAt = seen.length
+    },
+  })
+
+  const { positions } = parseGame(PGN)
+  assert.equal(preliminaryAt, positions.length, 'the scan finishes, then the report goes out')
+  assert.ok(seen.length > positions.length, 'the deep pass keeps reporting after that')
+
+  assert.ok(preliminary, 'a preliminary report was handed over')
+  const early = preliminary as NonNullable<typeof preliminary>
+  assert.equal(early.preliminary, true)
+  assert.equal(early.moves.length, final.moves.length, 'it is a whole report, not a fragment')
+  // The stub reports a shallower depth than asked for, as a capped search does.
+  assert.ok(early.moves.every((move) => move.depth <= 10), 'judged entirely on the scan')
+
+  assert.equal(final.preliminary, undefined, 'the finished report is not flagged')
+  assert.ok(
+    final.moves.some((move) => move.depth >= 18),
+    'and rests on the deep pass where it ran',
+  )
+})
