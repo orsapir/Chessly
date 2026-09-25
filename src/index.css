@@ -248,6 +248,11 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 .coords text { font-size: 9px; font-weight: 700; opacity: 0.75; }
 .coords .on-light { fill: var(--sq-dark); }
 .coords .on-dark { fill: var(--sq-light); }
+.selected-square { fill: #f7d94c; opacity: 0.5; }
+.target-dot { fill: #1f1d1b; opacity: 0.28; }
+.target-ring { fill: none; stroke: #1f1d1b; stroke-width: 5; opacity: 0.28; }
+.click-layer rect { fill: transparent; cursor: pointer; }
+
 .arrow line { stroke: #f6a935; stroke-width: 7; stroke-linecap: round; opacity: 0.85; }
 .arrow path { fill: #f6a935; opacity: 0.85; }
 .badge text { font-size: 13px; font-weight: 700; fill: #17211a; }
@@ -329,6 +334,18 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 .comment strong { font-size: 1rem; }
 .comment span { color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
 .comment-eval { font-variant-numeric: tabular-nums; font-size: 0.82rem !important; }
+
+/* ---------- trying a move ---------- */
+
+.comment.exploring { border-left-color: #6f9ad4; gap: 0.5rem; }
+.exploring-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.exploring-lines { width: 100%; border-collapse: collapse; }
+.exploring-lines td { padding: 0.18rem 0; font-size: 0.9rem; }
+.exploring-lines tr.yours td { font-weight: 600; color: var(--text); }
+.exploring-label { color: var(--muted); font-size: 0.78rem; width: 7.5rem; }
+.exploring-san { font-variant-numeric: tabular-nums; }
+.exploring-score { text-align: right; font-variant-numeric: tabular-nums; }
+.exploring-note { color: var(--muted); font-size: 0.75rem; }
 
 /* ---------- analysis in progress ---------- */
 

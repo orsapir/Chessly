@@ -15,9 +15,18 @@ export interface BoardProps {
   suggestion?: { from: string; to: string } | null
   /** Badge pinned to the destination square of the last move. */
   badge?: Classification | null
+  /** Square the player has picked up, if any. */
+  selected?: string | null
+  /** Where that piece may legally go. */
+  targets?: string[]
+  /** Called for every square; the caller decides what a click means. */
+  onSquareClick?: (square: string) => void
 }
 
 const FILES = 'abcdefgh'
+const SQUARE_NAMES = FILES.split('').flatMap((file) =>
+  Array.from({ length: 8 }, (_, index) => `${file}${index + 1}`),
+)
 
 function squareToXY(square: string, orientation: Color): { x: number; y: number } {
   const file = FILES.indexOf(square[0])
@@ -27,7 +36,16 @@ function squareToXY(square: string, orientation: Color): { x: number; y: number 
     : { x: (7 - file) * SQUARE, y: rank * SQUARE }
 }
 
-export function Board({ fen, orientation, lastMove, suggestion, badge }: BoardProps) {
+export function Board({
+  fen,
+  orientation,
+  lastMove,
+  suggestion,
+  badge,
+  selected,
+  targets,
+  onSquareClick,
+}: BoardProps) {
   const { pieces, checkedKing } = useMemo(() => {
     const chess = new Chess()
     let inCheck = false
@@ -128,7 +146,53 @@ export function Board({ fen, orientation, lastMove, suggestion, badge }: BoardPr
         })}
       </g>
 
+      {selected &&
+        (() => {
+          const { x, y } = squareToXY(selected, orientation)
+          return <rect className="selected-square" x={x} y={y} width={SQUARE} height={SQUARE} />
+        })()}
+
+      {targets?.map((square) => {
+        const { x, y } = squareToXY(square, orientation)
+        const occupied = pieces.some((piece) => piece.square === square)
+        return occupied ? (
+          <circle
+            key={square}
+            className="target-ring"
+            cx={x + SQUARE / 2}
+            cy={y + SQUARE / 2}
+            r={SQUARE * 0.44}
+          />
+        ) : (
+          <circle
+            key={square}
+            className="target-dot"
+            cx={x + SQUARE / 2}
+            cy={y + SQUARE / 2}
+            r={SQUARE * 0.16}
+          />
+        )
+      })}
+
       {suggestion && <Arrow from={suggestion.from} to={suggestion.to} orientation={orientation} />}
+
+      {onSquareClick && (
+        <g className="click-layer">
+          {SQUARE_NAMES.map((square) => {
+            const { x, y } = squareToXY(square, orientation)
+            return (
+              <rect
+                key={square}
+                x={x}
+                y={y}
+                width={SQUARE}
+                height={SQUARE}
+                onClick={() => onSquareClick(square)}
+              />
+            )
+          })}
+        </g>
+      )}
 
       {badgeMeta && badgeAt && (
         <g transform={`translate(${badgeAt.x + SQUARE - 9} ${badgeAt.y + 9})`} className="badge">

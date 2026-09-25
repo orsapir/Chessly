@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { parseGame, settingsFor, settingsKey } from '../lib/analyze'
+import { Chess } from 'chess.js'
+import { parseGame, settingsFor, settingsKey, toSan } from '../lib/analyze'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
@@ -8,6 +9,7 @@ import { Spinner } from './Spinner'
 import { DepthControl } from './DepthControl'
 import { EvalBar } from './EvalBar'
 import { EvalGraph } from './EvalGraph'
+import { ExplorePanel, type ExploreLine } from './ExplorePanel'
 import { MoveList } from './MoveList'
 import { ReportPanel } from './ReportPanel'
 
@@ -37,6 +39,19 @@ const START_SCORE: Score = { cp: 20, mate: null }
 /** Fast enough to follow a game, slow enough to read each move. */
 const PLAY_INTERVAL = 900
 
+/** Trying moves out has to answer between clicks, whatever the report ran at. */
+const EXPLORE_DEPTH = 18
+
+interface Exploration {
+  /** Position after the move being tried. */
+  fen: string
+  /** Position it was played from. */
+  from: string
+  yours: ExploreLine
+  game: ExploreLine | null
+  best: ExploreLine | null
+}
+
 export function AnalysisView({
   game,
   depth,
@@ -47,7 +62,8 @@ export function AnalysisView({
 }: Props) {
   const settings = useMemo(() => settingsFor(depth, exhaustive), [depth, exhaustive])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
-  const { report, running, progress, liveScores, error, fromCache, run, cancel } = useAnalysis()
+  const { report, running, progress, liveScores, error, fromCache, run, cancel, analysePosition } =
+    useAnalysis()
 
   const [ply, setPly] = useState(0)
   const [flipped, setFlipped] = useState(
@@ -55,7 +71,12 @@ export function AnalysisView({
   )
   const [tab, setTab] = useState<'report' | 'moves'>('report')
   const [playing, setPlaying] = useState(false)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [explore, setExplore] = useState<Exploration | null>(null)
+  const exploreRun = useRef(0)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
+  /** A swipe is followed by a click; without this it would also pick up a piece. */
+  const swipedAt = useRef(0)
 
   // Remounted per game (App keys on game id), so the ply resets on its own.
   useEffect(() => {
@@ -121,20 +142,92 @@ export function AnalysisView({
     const dx = touch.clientX - start.x
     const dy = touch.clientY - start.y
     if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    swipedAt.current = Date.now()
     jump(dx < 0 ? ply + 1 : ply - 1)
   }
 
-  /** Moving by hand takes the board back from the auto-play. */
+  /** Moving by hand takes the board back from the auto-play, and from exploring. */
   const jump = useCallback(
     (next: number) => {
       setPlaying(false)
+      exploreRun.current++
+      setExplore(null)
+      setPicked(null)
       go(next)
     },
     [go],
   )
 
   const currentMove = ply > 0 ? parsed.moves[ply - 1] : null
-  const fen = ply === 0 ? parsed.positions[0] : parsed.positions[ply]
+  const gameFen = ply === 0 ? parsed.positions[0] : parsed.positions[ply]
+  const fen = explore?.fen ?? gameFen
+
+  // Deep settings are far too slow to wait for between clicks.
+  const exploreDepth = Math.min(settings.depth, EXPLORE_DEPTH)
+
+  const legalMoves = useMemo(() => new Chess(fen).moves({ verbose: true }), [fen])
+  const targets = useMemo<string[]>(
+    () => (picked ? legalMoves.filter((move) => move.from === picked).map((move) => move.to) : []),
+    [legalMoves, picked],
+  )
+
+  /** Leaves exploration and puts the game's own position back on the board. */
+  const backToGame = useCallback(() => {
+    exploreRun.current++
+    setExplore(null)
+    setPicked(null)
+  }, [])
+
+  const tryMove = useCallback(
+    async (from: string, to: string) => {
+      const board = new Chess(fen)
+      const candidate = legalMoves.find((move) => move.from === from && move.to === to)
+      if (!candidate) return
+      const move = board.move({ from, to, promotion: 'q' })
+      if (!move) return
+
+      const id = ++exploreRun.current
+      setPicked(null)
+      setExplore({ fen: move.after, from: fen, yours: { san: move.san, score: null }, game: null, best: null })
+
+      // The game's own continuation from this position, when there is one and
+      // we have not wandered off the game's path.
+      const gameMove = fen === gameFen && ply < total ? parsed.moves[ply] : null
+
+      const [afterYours, fromHere, afterGame] = await Promise.all([
+        analysePosition(move.after, exploreDepth),
+        analysePosition(fen, exploreDepth),
+        gameMove ? analysePosition(gameMove.fenAfter, exploreDepth) : Promise.resolve(null),
+      ])
+      if (exploreRun.current !== id) return
+
+      const bestUci = fromHere.lines[0]?.pv[0] ?? null
+      setExplore({
+        fen: move.after,
+        from: fen,
+        yours: { san: move.san, score: afterYours.lines[0]?.score ?? null },
+        game: gameMove && afterGame ? { san: gameMove.san, score: afterGame.lines[0]?.score ?? null } : null,
+        best: bestUci
+          ? { san: toSan(fen, bestUci) ?? bestUci, score: fromHere.lines[0]?.score ?? null }
+          : null,
+      })
+    },
+    [analysePosition, exploreDepth, fen, gameFen, legalMoves, parsed.moves, ply, total],
+  )
+
+  const onSquare = useCallback(
+    (square: string) => {
+      // The click the browser sends after a swipe is not a move.
+      if (Date.now() - swipedAt.current < 400) return
+      setPlaying(false)
+      if (picked && targets.includes(square)) {
+        void tryMove(picked, square)
+        return
+      }
+      setPicked(legalMoves.some((move) => move.from === square) ? square : null)
+    },
+    [legalMoves, picked, targets, tryMove],
+  )
   const analyzed = report?.moves[ply - 1] ?? null
   const orientation = flipped ? 'black' : 'white'
 
@@ -185,9 +278,18 @@ export function AnalysisView({
             <Board
               fen={fen}
               orientation={orientation}
-              lastMove={currentMove ? { from: currentMove.uci.slice(0, 2), to: currentMove.uci.slice(2, 4) } : null}
-              suggestion={suggestion}
-              badge={analyzed?.classification ?? null}
+              lastMove={
+                explore
+                  ? null
+                  : currentMove
+                    ? { from: currentMove.uci.slice(0, 2), to: currentMove.uci.slice(2, 4) }
+                    : null
+              }
+              suggestion={explore ? null : suggestion}
+              badge={explore ? null : (analyzed?.classification ?? null)}
+              selected={picked}
+              targets={targets}
+              onSquareClick={onSquare}
             />
           </div>
 
@@ -228,7 +330,16 @@ export function AnalysisView({
             </button>
           </div>
 
-          {running ? (
+          {explore ? (
+            <ExplorePanel
+              yours={explore.yours}
+              game={explore.game}
+              best={explore.best}
+              depth={exploreDepth}
+              thinking={explore.yours.score === null}
+              onBack={backToGame}
+            />
+          ) : running ? (
             <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
           ) : (
             <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
