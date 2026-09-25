@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
+import { ClassBadge } from './ClassBadge'
 import type { AnalyzedMove } from '../lib/types'
 
 interface Props {
@@ -44,9 +45,7 @@ export function MoveList({ moves, currentPly, onSelect }: Props) {
                 title={`${meta.label} · ${formatScore(move.score)}`}
               >
                 <span className="move-san">{move.san}</span>
-                <span className="move-badge" style={{ color: meta.color }}>
-                  {meta.glyph}
-                </span>
+                <ClassBadge classification={move.classification} size={16} />
               </button>
             )
           })}

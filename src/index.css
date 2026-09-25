@@ -1,19 +1,21 @@
 :root {
-  --bg: #1b1a18;
+  --bg: #312e2b;
   --panel: #262421;
-  --panel-2: #302d2a;
-  --line: #3b3835;
-  --text: #ece9e6;
-  --muted: #9b948c;
+  --panel-2: #21201d;
+  --row: #2b2927;
+  --line: rgba(255, 255, 255, 0.07);
+  --text: #f4f3f1;
+  --muted: rgba(255, 255, 255, 0.55);
   --accent: #81b64c;
   --accent-soft: #6f9f41;
   --white-piece: #f4f1ec;
   --black-piece: #403c38;
-  --eval-white: #f2efe9;
-  --eval-black: #2b2825;
-  --sq-light: #eeeed2;
-  --sq-dark: #769656;
-  --radius: 10px;
+  --eval-white: #f8f8f8;
+  --eval-black: #403d39;
+  --sq-light: #ebecd0;
+  --sq-dark: #739552;
+  --radius: 6px;
+  --font-display: 'Montserrat', 'Segoe UI', system-ui, sans-serif;
 
   color-scheme: dark;
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
@@ -227,72 +229,96 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 }
 .result { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-/* The rows above and below the board, as a chess site lays them out. */
+/* The rows above and below the board, as a chess site lays them out: no card
+   around them, the avatar square, what they have taken, how they did. */
 .player-strip {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.55rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 0.92rem;
+  padding: 0.15rem 0.1rem;
+  font-size: 0.95rem;
   min-width: 0;
 }
-.player-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.piece-dot {
+.player-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-strip .rating { color: var(--muted); font-size: 0.85rem; }
+.avatar {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
   border-radius: 4px;
-  border: 1px solid #56514c;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
 }
-.piece-dot.white { background: var(--white-piece); }
-.piece-dot.black { background: #1a1917; }
+.avatar.white { background: #f0f0f0; color: #312e2b; }
+.avatar.black { background: #4b4847; color: #f0f0f0; }
+.captured {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1.05rem;
+  line-height: 1;
+  letter-spacing: -0.28em;
+  padding-right: 0.28em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.captured.white { color: #cfccc7; }
+.captured.black { color: #56524d; }
+.captured .edge {
+  letter-spacing: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-left: 0.5em;
+  font-variant-numeric: tabular-nums;
+}
 .player-accuracy {
   margin-left: auto;
   background: var(--accent);
-  color: #14231b;
+  color: #fff;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.8rem;
-  border-radius: 6px;
-  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
   font-variant-numeric: tabular-nums;
 }
 .header-side { margin-left: auto; display: flex; gap: 0.5rem; align-items: center; }
 
 .analysis-body {
   display: grid;
-  grid-template-columns: minmax(0, 560px) minmax(320px, 400px);
+  grid-template-columns: minmax(0, 1fr) 372px;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 1.1rem;
   align-items: start;
+  max-width: 1080px;
+  margin: 0 auto;
 }
-.board-column { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
-.board-wrap { display: flex; gap: 0.5rem; }
+.board-column { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; max-width: 640px; }
+.board-wrap { display: flex; gap: 6px; align-items: stretch; }
 
-.board { flex: 1; width: 100%; border-radius: 6px; overflow: hidden; display: block; }
+.board { flex: 1; width: 100%; border-radius: 4px; overflow: hidden; display: block; }
 .sq-light { fill: var(--sq-light); }
 .sq-dark { fill: var(--sq-dark); }
-.last-move rect { fill: #f7d94c; opacity: 0.4; }
+.last-move rect { fill: #ffff33; opacity: 0.45; }
 .check-glow { fill: #e5443b; opacity: 0.45; }
-.coords text { font-size: 9px; font-weight: 700; opacity: 0.75; }
+.coords text { font-size: 8.5px; font-weight: 700; }
 .coords .on-light { fill: var(--sq-dark); }
 .coords .on-dark { fill: var(--sq-light); }
-.selected-square { fill: #f7d94c; opacity: 0.5; }
-.target-dot { fill: #1f1d1b; opacity: 0.28; }
-.target-ring { fill: none; stroke: #1f1d1b; stroke-width: 5; opacity: 0.28; }
+.selected-square { fill: #ffff33; opacity: 0.5; }
+.target-dot { fill: #1f1d1b; opacity: 0.22; }
+.target-ring { fill: none; stroke: #1f1d1b; stroke-width: 5; opacity: 0.22; }
 .click-layer rect { fill: transparent; cursor: pointer; }
 
 .arrow line { stroke: #f6a935; stroke-width: 7; stroke-linecap: round; opacity: 0.85; }
 .arrow path { fill: #f6a935; opacity: 0.85; }
-.badge text { font-size: 13px; font-weight: 700; fill: #17211a; }
-.badge circle { stroke: #1b1a18; stroke-width: 1.5; }
+/* The verdict disc sits proud of its square, the way a game review marks it. */
+.board-badge circle.ring { fill: #fff; }
 
 .eval-bar {
   position: relative;
-  width: 30px;
-  border-radius: 5px;
+  width: 24px;
+  border-radius: 3px;
   overflow: hidden;
   flex: none;
   display: flex;
@@ -310,7 +336,7 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   left: 0;
   right: 0;
   top: 50%;
-  border-top: 1px dashed rgba(128, 128, 128, 0.55);
+  border-top: 1px solid rgba(128, 128, 128, 0.4);
 }
 
 .eval-bar .eval-label {
@@ -319,54 +345,103 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   right: 0;
   bottom: 3px;
   text-align: center;
-  font-size: 0.62rem;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   /* Dark ink on White's block; light ink on Black's. */
-  color: #2b2926;
+  color: #4a4744;
 }
 .eval-bar .eval-label.at-top { bottom: auto; top: 3px; }
-.eval-bar .eval-label.on-black { color: #e8e6e3; }
+.eval-bar .eval-label.on-black { color: #f0eeec; }
 
 /* While the shallow pass is still the only answer. */
 .eval-bar.provisional .eval-fill { opacity: 0.82; }
 
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; justify-content: center; }
-.controls button {
+/* ---------- the review panel beside the board ---------- */
+
+.review-panel {
+  background: var(--panel);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  max-height: calc(100vh - 150px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.65rem;
   background: var(--panel-2);
   color: var(--text);
-  border: 1px solid var(--line);
-  padding: 0.45rem 0.9rem;
 }
+.review-head strong { flex: 1; font-family: var(--font-display); font-size: 0.95rem; }
+.review-head .icon { opacity: 0.7; }
+.review-settings { padding: 0.7rem; display: flex; flex-direction: column; gap: 0.6rem; border-bottom: 1px solid var(--line); }
+.review-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.review-foot {
+  border-top: 1px solid var(--line);
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--panel);
+}
+
+.controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.1rem; justify-content: center; }
+.icon-button {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.62);
+  padding: 0.42rem;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+.icon-button:where(:hover:not(:disabled)) { background: rgba(255, 255, 255, 0.09); color: #fff; }
+.icon-button.on { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.icon-button.play { background: var(--accent); color: #fff; }
+.icon-button.play:where(:hover:not(:disabled)) { background: #a3d160; color: #fff; }
+.icon-button.play.active { background: rgba(255, 255, 255, 0.12); color: #fff; }
 
 /* Touch devices get targets a thumb can actually hit. */
 @media (pointer: coarse) {
-  .controls button { min-height: 44px; min-width: 44px; }
-  .tabs button, .segmented button { min-height: 44px; }
+  .icon-button { min-height: 42px; min-width: 42px; }
+  .segmented button { min-height: 44px; }
   .depth-presets button { min-height: 36px; }
   .depth-control input[type='range'] { height: 32px; }
   .game-row { padding: 0.85rem 0.9rem; }
 }
-.controls button:hover { background: var(--panel); color: var(--accent); }
-.controls button.play { background: var(--accent); color: #14231b; border-color: var(--accent); }
-.controls button.play:hover { background: #93cc55; color: #14231b; }
-.controls button.play.active { background: var(--panel-2); color: var(--accent); border-color: var(--accent-soft); }
-.ply-counter { color: var(--muted); font-size: 0.85rem; min-width: 60px; text-align: center; font-variant-numeric: tabular-nums; }
+.ply-counter { color: var(--muted); font-size: 0.8rem; min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
 
 .comment {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--panel-2);
   border-left: 4px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.8rem 1rem;
+  border-radius: 4px;
+  padding: 0.6rem 0.7rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  min-height: 84px;
+  min-height: 72px;
 }
-.comment strong { font-size: 1rem; }
-.comment span { color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
-.comment-eval { font-variant-numeric: tabular-nums; font-size: 0.82rem !important; }
+.comment strong { font-size: 0.98rem; font-family: var(--font-display); }
+.comment span { color: var(--muted); font-size: 0.86rem; line-height: 1.4; }
+.comment-eval { font-variant-numeric: tabular-nums; font-size: 0.8rem !important; }
+.verdict-head { display: flex; align-items: center; gap: 0.45rem; }
+.verdict-head strong { flex: 1; min-width: 0; }
+.verdict-head .comment-eval { flex: none; }
 
 /* ---------- trying a move ---------- */
 
@@ -406,17 +481,6 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   .progress-fill { transition: none; }
 }
 
-.side-column { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-.side-top { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
-.tabs { display: flex; gap: 0.3rem; flex: 1 1 180px; min-width: 0; }
-.tabs button {
-  flex: 1;
-  background: var(--panel);
-  color: var(--muted);
-  border: 1px solid var(--line);
-  font-weight: 600;
-}
-.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--accent-soft); }
 /* ---------- depth control ---------- */
 
 .depth-control {
@@ -507,6 +571,8 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   border: 1px solid var(--line);
   width: 100%;
   height: 110px;
+  /* A flex item in the panel column, so it has to be told not to squash. */
+  flex: none;
   border-radius: 8px;
   background: #f0eee9;
   cursor: pointer;
@@ -519,110 +585,139 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 
 /* ---------- report ---------- */
 
-.report { display: flex; flex-direction: column; gap: 1rem; }
-.accuracy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.report { display: flex; flex-direction: column; gap: 0.8rem; }
+/* Pinned above the scrolling moves, so the scores stay in view. */
+.report.summary { padding: 0.7rem 0.7rem 0.4rem; border-bottom: 1px solid var(--line); gap: 0.5rem; }
+.report.detail { gap: 0.8rem; }
+.accuracy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .accuracy-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.8rem;
+  background: var(--panel-2);
+  border-radius: 5px;
+  padding: 0.5rem 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  min-width: 0;
 }
 .accuracy-card.white { border-top: 3px solid var(--white-piece); }
 .accuracy-card.black { border-top: 3px solid #6d6864; }
-.accuracy-name { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.accuracy-value { font-size: 1.9rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.accuracy-caption { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.accuracy-name { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accuracy-value.leader { color: var(--accent); }
+.accuracy-value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.accuracy-caption { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .player-stats {
   display: flex;
   gap: 0.9rem;
-  margin: 0.55rem 0 0;
-  padding-top: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding-top: 0.45rem;
   border-top: 1px solid var(--line);
 }
 .player-stats div { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; }
 .player-stats dt {
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
 .player-stats dd {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.counts { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.counts td { padding: 0.4rem 0.7rem; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
-.counts tr:last-child td { border-bottom: none; }
-.count-value { width: 3rem; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
-.count-label { text-align: center; color: var(--muted); }
-.count-glyph { font-weight: 700; margin-right: 0.4rem; }
+.counts { width: 100%; border-collapse: collapse; }
+.counts td { padding: 0.2rem 0.5rem; font-size: 0.86rem; }
+.counts tr:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+.count-value {
+  width: 2.6rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.count-label { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 600; }
 
-.turning-points h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.5rem; }
+.turning-points h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.45rem; }
 .turning-point {
   width: 100%;
   display: flex;
-  gap: 0.6rem;
+  gap: 0.55rem;
   align-items: center;
   text-align: left;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border: none;
+  border-radius: 4px;
   color: var(--muted);
   font-weight: 400;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   margin-bottom: 4px;
-  padding: 0.55rem 0.7rem;
+  padding: 0.5rem 0.6rem;
 }
-.turning-point:hover { background: var(--panel-2); color: var(--text); }
+.turning-point:hover { background: #2f2d2a; color: var(--text); }
 .turning-point strong { color: var(--text); }
-.turning-glyph { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #17211a; font-weight: 700; font-size: 0.8rem; flex: none; }
 
 .no-turning { margin: 0; line-height: 1.45; }
-.report-footnote { color: var(--muted); font-size: 0.75rem; margin: 0; }
+.report-footnote { color: var(--muted); font-size: 0.72rem; margin: 0; line-height: 1.4; }
 .rerun { align-self: flex-start; }
 
 /* ---------- move list ---------- */
 
 .move-list {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.35rem;
-  max-height: 52vh;
-  min-height: 220px;
+  border-radius: 4px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 190px;
+  max-height: 46vh;
 }
-.move-row { display: grid; grid-template-columns: 2.4rem 1fr 1fr; align-items: center; gap: 0.2rem; }
-.move-row:nth-child(odd) { background: rgba(255, 255, 255, 0.02); }
-.move-number { color: var(--muted); font-size: 0.82rem; text-align: right; padding-right: 0.4rem; font-variant-numeric: tabular-nums; }
+.move-row { display: grid; grid-template-columns: 2.1rem 1fr 1fr; align-items: stretch; }
+.move-row:nth-child(odd) { background: var(--row); }
+.move-number {
+  color: var(--muted);
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.45rem;
+  font-variant-numeric: tabular-nums;
+}
 .move-cell {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   background: transparent;
   color: var(--text);
-  font-weight: 500;
-  border-radius: 5px;
-  padding: 0.25rem 0.4rem;
+  font-weight: 600;
+  border-radius: 0;
+  padding: 0.3rem 0.45rem;
   text-align: left;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
-.move-cell:hover { background: var(--panel-2); }
-.move-cell.active { background: var(--accent-soft); color: #101a10; font-weight: 700; }
-.move-badge { font-weight: 700; font-size: 0.85rem; }
-.move-cell.active .move-badge { filter: brightness(1.25); }
-.move-list.plain { display: flex; flex-wrap: wrap; gap: 2px; }
+.move-cell:hover { background: rgba(255, 255, 255, 0.06); }
+.move-cell.active { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.move-list.plain { display: flex; flex-wrap: wrap; gap: 2px; padding: 0.3rem; }
+.move-list.plain .move-cell { border-radius: 4px; }
 
-@media (max-width: 920px) {
-  .analysis-body { grid-template-columns: minmax(0, 1fr); }
-  .side-column { order: 2; }
+@media (max-width: 960px) {
+  .analysis-body { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
   .board-column { max-width: 560px; margin: 0 auto; width: 100%; }
+  /* Stacked, the panel is no longer a column beside the board: the verdict and
+     the controls belong right under it, and the move list runs on below. */
+  .review-panel { max-height: none; background: transparent; box-shadow: none; }
+  .review-head { border-radius: var(--radius) var(--radius) 0 0; order: 2; }
+  .report.summary { order: 3; background: var(--panel); }
+  .review-settings { order: 4; background: var(--panel); }
+  .review-scroll { order: 5; background: var(--panel); border-radius: 0 0 var(--radius) var(--radius); padding: 0.6rem; }
+  /* Nothing is fighting for height in a stacked column, so let the list run. */
+  .move-list { max-height: none; }
+  .review-foot { order: 1; border-top: none; padding: 0.5rem 0 0.7rem; background: transparent; }
   .home h1 { font-size: 1.9rem; }
   .game-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
   .game-row .game-meta { display: none; }

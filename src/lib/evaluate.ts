@@ -189,17 +189,17 @@ export function classify(input: ClassifyInput): Classification {
 
 export const CLASSIFICATION_META: Record<
   Classification,
-  { label: string; glyph: string; color: string; blurb: string; countsAsMistake?: boolean }
+  { label: string; verdict: string; glyph: string; color: string; blurb: string; countsAsMistake?: boolean }
 > = {
-  brilliant: { label: 'Brilliant', glyph: '!!', color: '#1cbaba', blurb: 'A sacrifice that works.' },
-  great: { label: 'Great', glyph: '!', color: '#5c8bb0', blurb: 'The only move that keeps it.' },
-  best: { label: 'Best', glyph: '★', color: '#7fa650', blurb: "The engine's first choice." },
-  excellent: { label: 'Excellent', glyph: '✓', color: '#96bc4b', blurb: 'As good as the best move.' },
-  good: { label: 'Good', glyph: '✓', color: '#96af8b', blurb: 'Reasonable, if not the sharpest.' },
-  book: { label: 'Book', glyph: '📖', color: '#a88865', blurb: 'Known opening theory.' },
-  forced: { label: 'Forced', glyph: '→', color: '#9c9c9c', blurb: 'Nothing else was legal.' },
-  inaccuracy: { label: 'Inaccuracy', glyph: '?!', color: '#f7c631', blurb: 'Lets some of the advantage slip.', countsAsMistake: true },
-  miss: { label: 'Miss', glyph: '✗', color: '#ee6b55', blurb: 'A winning chance went by.', countsAsMistake: true },
-  mistake: { label: 'Mistake', glyph: '?', color: '#ffa459', blurb: 'Hands the opponent real chances.', countsAsMistake: true },
-  blunder: { label: 'Blunder', glyph: '??', color: '#fa412d', blurb: 'Changes the result of the game.', countsAsMistake: true },
+  brilliant: { label: 'Brilliant', verdict: 'is brilliant', glyph: '!!', color: '#1cbaba', blurb: 'A sacrifice that works.' },
+  great: { label: 'Great', verdict: 'is a great find', glyph: '!', color: '#5c8bb0', blurb: 'The only move that keeps it.' },
+  best: { label: 'Best', verdict: 'is best', glyph: '★', color: '#7fa650', blurb: "The engine's first choice." },
+  excellent: { label: 'Excellent', verdict: 'is excellent', glyph: '✓', color: '#96bc4b', blurb: 'As good as the best move.' },
+  good: { label: 'Good', verdict: 'is good', glyph: '✓', color: '#96af8b', blurb: 'Reasonable, if not the sharpest.' },
+  book: { label: 'Book', verdict: 'is book', glyph: '📖', color: '#a88865', blurb: 'Known opening theory.' },
+  forced: { label: 'Forced', verdict: 'is forced', glyph: '→', color: '#9c9c9c', blurb: 'Nothing else was legal.' },
+  inaccuracy: { label: 'Inaccuracy', verdict: 'is an inaccuracy', glyph: '?!', color: '#f7c631', blurb: 'Lets some of the advantage slip.', countsAsMistake: true },
+  miss: { label: 'Miss', verdict: 'is a miss', glyph: '✗', color: '#ee6b55', blurb: 'A winning chance went by.', countsAsMistake: true },
+  mistake: { label: 'Mistake', verdict: 'is a mistake', glyph: '?', color: '#ffa459', blurb: 'Hands the opponent real chances.', countsAsMistake: true },
+  blunder: { label: 'Blunder', verdict: 'is a blunder', glyph: '??', color: '#fa412d', blurb: 'Changes the result of the game.', countsAsMistake: true },
 }

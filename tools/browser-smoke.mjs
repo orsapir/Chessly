@@ -96,20 +96,19 @@ await page.locator('.segmented button', { hasText: 'All' }).click()
 
 await page.locator('.game-row').nth(2).click()
 // Accuracy shows beside the players as soon as the scan has an answer; the
-// cards themselves live behind the Report tab, which is no longer the default.
+// cards themselves are further down the review panel.
 await page.waitForSelector('.player-accuracy', { timeout: 120000 })
 // That first report is the preliminary one. Leaving now would cancel the run
 // before it caches anything, so wait for the progress block to go.
 await page.waitForFunction(() => !document.querySelector('.comment.analysing'), null, {
   timeout: 300000,
 })
-await page.getByRole('button', { name: 'Report' }).click()
 await page.waitForSelector('.accuracy-value', { timeout: 10000 })
 console.log('board orientation flipped for black hero:', await page.evaluate(() => document.querySelector('.coords .on-dark')?.textContent))
 console.log('accuracy:', (await page.locator('.accuracy-card').allInnerTexts()).map((t) => t.replace(/\n/g, ' ')))
 await page.screenshot({ path: `${SHOTS}/6-analysis-from-api.png` })
 
-await page.getByRole('button', { name: '← Games' }).click()
+await page.getByRole('button', { name: 'Back to games' }).click()
 await page.waitForSelector('.game-row')
 console.log('back to list ok')
 

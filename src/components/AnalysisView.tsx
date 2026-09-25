@@ -5,13 +5,15 @@ import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { Color, GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
 import { Board } from './Board'
+import { ClassBadge } from './ClassBadge'
+import { Icon } from './Icon'
 import { Spinner } from './Spinner'
 import { DepthControl } from './DepthControl'
 import { EvalBar } from './EvalBar'
 import { EvalGraph } from './EvalGraph'
 import { ExplorePanel, type ExploreLine } from './ExplorePanel'
 import { MoveList } from './MoveList'
-import { ReportPanel } from './ReportPanel'
+import { ReportDetail, ReportSummary } from './ReportPanel'
 
 export interface GameMeta {
   id: string
@@ -69,7 +71,7 @@ export function AnalysisView({
   const [flipped, setFlipped] = useState(
     game.hero ? game.black.username.toLowerCase() === game.hero.toLowerCase() : false,
   )
-  const [tab, setTab] = useState<'report' | 'moves'>('moves')
+  const [showSettings, setShowSettings] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
   const [explore, setExplore] = useState<Exploration | null>(null)
@@ -228,6 +230,7 @@ export function AnalysisView({
     },
     [legalMoves, picked, targets, tryMove],
   )
+  const material = useMemo(() => capturedMaterial(fen), [fen])
   const analyzed = report?.moves[ply - 1] ?? null
   const orientation: Color = flipped ? 'black' : 'white'
   // Whoever's pieces start at the far edge sits above the board.
@@ -252,8 +255,8 @@ export function AnalysisView({
   return (
     <div className="analysis">
       <header className="analysis-header">
-        <button className="ghost" onClick={onBack}>
-          ← Games
+        <button className="icon-button" onClick={onBack} title="Back to the game list" aria-label="Back to games">
+          <Icon name="back" />
         </button>
         <span className="result">{scoreline(parsed.result)}</span>
         <div className="header-side">
@@ -273,6 +276,8 @@ export function AnalysisView({
             rating={topColor === 'white' ? game.white.rating : game.black.rating}
             color={topColor}
             accuracy={report?.[topColor].accuracy}
+            captured={material[topColor]}
+            edge={material.edge[topColor]}
           />
 
           <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -304,107 +309,118 @@ export function AnalysisView({
             rating={bottomColor === 'white' ? game.white.rating : game.black.rating}
             color={bottomColor}
             accuracy={report?.[bottomColor].accuracy}
+            captured={material[bottomColor]}
+            edge={material.edge[bottomColor]}
           />
-
-          <div className="controls">
-            <button onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
-              ⏮
-            </button>
-            <button onClick={() => jump(ply - 1)} title="Previous (←)" aria-label="Previous move">
-              ◀
-            </button>
-            <button
-              className={`play${autoPlaying ? ' active' : ''}`}
-              onClick={() => {
-                if (autoPlaying) return setPlaying(false)
-                if (ply >= total) go(0)
-                setPlaying(true)
-              }}
-              title={autoPlaying ? 'Pause (space)' : 'Play through the game (space)'}
-              aria-label={autoPlaying ? 'Pause' : 'Play through the game'}
-            >
-              {autoPlaying ? '❚❚' : '▶'}
-            </button>
-            <span className="ply-counter">
-              {ply}/{total}
-            </span>
-            <button onClick={() => jump(ply + 1)} title="Next (→)" aria-label="Next move">
-              ▶❙
-            </button>
-            <button onClick={() => jump(total)} title="End (↓)" aria-label="Go to end">
-              ⏭
-            </button>
-            <button
-              onClick={() => setFlipped((value) => !value)}
-              title="Flip board (f)"
-              aria-label="Flip board"
-            >
-              ⇅
-            </button>
-          </div>
-
-          {explore ? (
-            <ExplorePanel
-              yours={explore.yours}
-              game={explore.game}
-              best={explore.best}
-              depth={exploreDepth}
-              thinking={explore.yours.score === null}
-              onBack={backToGame}
-            />
-          ) : running ? (
-            <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
-          ) : (
-            <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
-          )}
         </div>
 
-        <aside className="side-column">
-          <div className="side-top">
-            <div className="tabs">
-              <button className={tab === 'report' ? 'active' : ''} onClick={() => setTab('report')}>
-                Report
-              </button>
-              <button className={tab === 'moves' ? 'active' : ''} onClick={() => setTab('moves')}>
-                Moves
-              </button>
-            </div>
+        <aside className="review-panel">
+          <div className="review-head">
+            <Icon name="chart" size={18} />
+            <strong>Game Review</strong>
+            <button
+              className={`icon-button${showSettings ? ' on' : ''}`}
+              onClick={() => setShowSettings((value) => !value)}
+              title="Analysis settings"
+              aria-label="Analysis settings"
+              aria-expanded={showSettings}
+            >
+              <Icon name="gear" size={18} />
+            </button>
           </div>
 
-          <DepthControl
-            depth={depth}
-            onChange={onDepthChange}
-            exhaustive={exhaustive}
-            onExhaustiveChange={onExhaustiveChange}
-            disabled={running}
-          />
-
-          {error && <p className="error">{error}</p>}
-
-          {report && (
-            <>
-              <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
-              {tab === 'report' ? (
-                <ReportPanel
-                  report={report}
-                  whiteName={game.white.username}
-                  blackName={game.black.username}
-                  onSelect={jump}
-                />
-              ) : (
-                <MoveList moves={report.moves} currentPly={ply} onSelect={jump} />
-              )}
+          {showSettings && (
+            <div className="review-settings">
+              <DepthControl
+                depth={depth}
+                onChange={onDepthChange}
+                exhaustive={exhaustive}
+                onExhaustiveChange={onExhaustiveChange}
+                disabled={running}
+              />
               {fromCache && (
                 <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, settings, true)}>
                   Re-analyse from scratch
                 </button>
               )}
-            </>
+            </div>
           )}
 
-          {!report && !running && !error && (
-            <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={jump} />
+          {error && <p className="error">{error}</p>}
+
+          {report && (
+            <ReportSummary
+              report={report}
+              whiteName={game.white.username}
+              blackName={game.black.username}
+            />
           )}
+
+          <div className="review-scroll">
+            {report && (
+              <>
+                <MoveList moves={report.moves} currentPly={ply} onSelect={jump} />
+                <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
+                <ReportDetail report={report} onSelect={jump} />
+              </>
+            )}
+            {!report && <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={jump} />}
+          </div>
+
+          <div className="review-foot">
+            {explore ? (
+              <ExplorePanel
+                yours={explore.yours}
+                game={explore.game}
+                best={explore.best}
+                depth={exploreDepth}
+                thinking={explore.yours.score === null}
+                onBack={backToGame}
+              />
+            ) : running ? (
+              <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
+            ) : (
+              <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
+            )}
+
+            <div className="controls">
+              <button
+                className="icon-button"
+                onClick={() => setFlipped((value) => !value)}
+                title="Flip board (f)"
+                aria-label="Flip board"
+              >
+                <Icon name="flip" />
+              </button>
+              <button className="icon-button" onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
+                <Icon name="start" />
+              </button>
+              <button className="icon-button" onClick={() => jump(ply - 1)} title="Previous (←)" aria-label="Previous move">
+                <Icon name="prev" />
+              </button>
+              <button
+                className={`icon-button play${autoPlaying ? ' active' : ''}`}
+                onClick={() => {
+                  if (autoPlaying) return setPlaying(false)
+                  if (ply >= total) go(0)
+                  setPlaying(true)
+                }}
+                title={autoPlaying ? 'Pause (space)' : 'Play through the game (space)'}
+                aria-label={autoPlaying ? 'Pause' : 'Play through the game'}
+              >
+                <Icon name={autoPlaying ? 'pause' : 'play'} />
+              </button>
+              <button className="icon-button" onClick={() => jump(ply + 1)} title="Next (→)" aria-label="Next move">
+                <Icon name="next" />
+              </button>
+              <button className="icon-button" onClick={() => jump(total)} title="End (↓)" aria-label="Go to end">
+                <Icon name="end" />
+              </button>
+              <span className="ply-counter">
+                {ply}/{total}
+              </span>
+            </div>
+          </div>
         </aside>
       </div>
     </div>
@@ -445,23 +461,33 @@ function AnalysisProgress({
   )
 }
 
-/** The row above and below the board carrying whose move it is and how they did. */
+/** The row above and below the board: who it is, what they took, how they did. */
 function PlayerStrip({
   name,
   rating,
   color,
   accuracy,
+  captured,
+  edge,
 }: {
   name: string
   rating?: number
   color: Color
   accuracy?: number
+  captured: string
+  edge: number
 }) {
   return (
     <div className="player-strip">
-      <span className={`piece-dot ${color}`} />
+      <span className={`avatar ${color}`} aria-hidden="true">
+        {name.slice(0, 1).toUpperCase()}
+      </span>
       <span className="player-name">{name}</span>
-      {rating ? <span className="rating">{rating}</span> : null}
+      {rating ? <span className="rating">({rating})</span> : null}
+      <span className={`captured ${color === 'white' ? 'black' : 'white'}`}>
+        {captured}
+        {edge > 0 ? <span className="edge">+{edge}</span> : null}
+      </span>
       {accuracy !== undefined && (
         <span className="player-accuracy" title="Accuracy for this game">
           {accuracy.toFixed(1)}
@@ -469,6 +495,54 @@ function PlayerStrip({
       )}
     </div>
   )
+}
+
+const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
+const TAKEN_GLYPH: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' }
+/** What each side starts with, and what each of those is worth. */
+const START_COUNT: [string, number][] = [
+  ['q', 1],
+  ['r', 2],
+  ['b', 2],
+  ['n', 2],
+  ['p', 8],
+]
+
+export interface Material {
+  /** The pieces this side has taken, as glyphs, biggest first. */
+  white: string
+  black: string
+  /** Material lead in pawns, for the side that has one. */
+  edge: Record<Color, number>
+}
+
+/**
+ * What each side has taken, read off the position rather than the move list so
+ * it is right wherever the board is - including a position reached by trying a
+ * move out. `edge` is the material lead in pawns, which is the number a chess
+ * site puts beside the pieces. A promotion can leave a side with more of a
+ * piece than it started with, so what is missing never goes below zero.
+ */
+function capturedMaterial(fen: string): Material {
+  const board = fen.split(' ')[0]
+  const taken = { white: '', black: '' }
+  const held = { white: 0, black: 0 }
+  for (const [kind, start] of START_COUNT) {
+    for (const color of ['white', 'black'] as const) {
+      const letter = color === 'white' ? kind.toUpperCase() : kind
+      const left = board.split(letter).length - 1
+      held[color] += left * PIECE_VALUE[kind]
+      // Whatever is missing from this side was taken by the other one.
+      const other = color === 'white' ? 'black' : 'white'
+      taken[other] += TAKEN_GLYPH[kind].repeat(Math.max(0, start - left))
+    }
+  }
+  const lead = held.white - held.black
+  return {
+    white: taken.white,
+    black: taken.black,
+    edge: { white: Math.max(0, lead), black: Math.max(0, -lead) },
+  }
 }
 
 function scoreline(result: string): string {
@@ -491,7 +565,7 @@ function MoveComment({
     return (
       <div className="comment neutral">
         <strong>{opening ?? 'Starting position'}</strong>
-        <span>Use ← and → to step through the game.</span>
+        <span>Play through the game, or move a piece to try something else.</span>
       </div>
     )
   }
@@ -507,29 +581,33 @@ function MoveComment({
   const meta = CLASSIFICATION_META[move.classification]
   const alternative =
     move.bestMoveSan && move.bestMoveSan !== move.san && move.loss >= 2
-      ? `Best was ${move.bestMoveSan}.`
+      ? `Best move was ${move.bestMoveSan}.`
       : move.bestLineSan.length > 1
         ? `Then ${move.bestLineSan.slice(1, 4).join(' ')}`
         : ''
 
   return (
-    <div className="comment" style={{ borderColor: meta.color }}>
-      <strong style={{ color: meta.color }}>
-        {move.moveNumber}
-        {move.color === 'white' ? '.' : '…'} {move.san} — {meta.label}
-      </strong>
+    <div className="comment verdict" style={{ borderColor: meta.color }}>
+      <div className="verdict-head">
+        <ClassBadge classification={move.classification} size={22} />
+        <strong style={{ color: meta.color }}>
+          {move.san} {meta.verdict}
+        </strong>
+        <span className="comment-eval">{formatScore(move.score)}</span>
+      </div>
       <span>
         {move.classification === 'book' && move.opening
           ? move.opening
           : `${meta.blurb} ${alternative}`.trim()}
       </span>
-      <span className="comment-eval">
-        {formatScore(move.score)}
-        {move.loss >= 1 ? ` · −${move.loss.toFixed(0)}% win chance` : ''}
-        {move.sacrifice && move.classification === 'brilliant'
-          ? ` · sacrifices ${(move.sacrifice / 100).toFixed(1)} pawns of material`
-          : ''}
-      </span>
+      {(move.loss >= 1 || (move.sacrifice && move.classification === 'brilliant')) && (
+        <span className="comment-eval">
+          {move.loss >= 1 ? `−${move.loss.toFixed(0)}% win chance` : ''}
+          {move.sacrifice && move.classification === 'brilliant'
+            ? `${move.loss >= 1 ? ' · ' : ''}gives up ${(move.sacrifice / 100).toFixed(1)} pawns`
+            : ''}
+        </span>
+      )}
     </div>
   )
 }

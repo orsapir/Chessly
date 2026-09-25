@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js'
 import { useMemo } from 'react'
 import { CLASSIFICATION_META } from '../lib/evaluate'
+import { ClassBadge } from './ClassBadge'
 import type { Classification, Color } from '../lib/types'
 import { PIECE_SVG, type PieceKey } from './pieces'
 
@@ -130,7 +131,7 @@ export function Board({
         {FILES.split('').map((file, index) => {
           const x = (orientation === 'white' ? index : 7 - index) * SQUARE
           return (
-            <text key={file} x={x + SQUARE - 4} y={SIZE - 4} className={index % 2 === 0 ? 'on-dark' : 'on-light'}>
+            <text key={file} x={x + SQUARE - 4} y={SIZE - 3.5} className={index % 2 === 0 ? 'on-dark' : 'on-light'}>
               {file}
             </text>
           )
@@ -195,11 +196,12 @@ export function Board({
       )}
 
       {badgeMeta && badgeAt && (
-        <g transform={`translate(${badgeAt.x + SQUARE - 9} ${badgeAt.y + 9})`} className="badge">
-          <circle r={12} fill={badgeMeta.color} />
-          <text textAnchor="middle" dominantBaseline="central" y={1}>
-            {badgeMeta.glyph}
-          </text>
+        <g
+          transform={`translate(${badgeAt.x + SQUARE - 7} ${badgeAt.y + 7}) scale(0.62)`}
+          className="board-badge"
+        >
+          <circle className="ring" r={14} />
+          <ClassBadge classification={badge as Classification} size={24} x={-12} y={-12} />
         </g>
       )}
     </svg>
