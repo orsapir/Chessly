@@ -225,9 +225,40 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
-.matchup { display: flex; align-items: center; gap: 0.75rem; font-weight: 600; }
-.player-tag { display: inline-flex; align-items: center; gap: 0.4rem; }
-.result { color: var(--muted); font-variant-numeric: tabular-nums; }
+.result { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* The rows above and below the board, as a chess site lays them out. */
+.player-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.92rem;
+  min-width: 0;
+}
+.player-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.piece-dot {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #56514c;
+}
+.piece-dot.white { background: var(--white-piece); }
+.piece-dot.black { background: #1a1917; }
+.player-accuracy {
+  margin-left: auto;
+  background: var(--accent);
+  color: #14231b;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  font-variant-numeric: tabular-nums;
+}
 .header-side { margin-left: auto; display: flex; gap: 0.5rem; align-items: center; }
 
 .analysis-body {
@@ -237,7 +268,7 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   gap: 1.5rem;
   align-items: start;
 }
-.board-column { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.board-column { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
 .board-wrap { display: flex; gap: 0.5rem; }
 
 .board { flex: 1; width: 100%; border-radius: 6px; overflow: hidden; display: block; }
@@ -291,9 +322,11 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   font-size: 0.62rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  /* Dark ink on White's block; light ink on Black's. */
   color: #2b2926;
 }
-.eval-bar.flipped .eval-label { color: #e8e6e3; }
+.eval-bar .eval-label.at-top { bottom: auto; top: 3px; }
+.eval-bar .eval-label.on-black { color: #e8e6e3; }
 
 /* While the shallow pass is still the only answer. */
 .eval-bar.provisional .eval-fill { opacity: 0.82; }
@@ -560,8 +593,9 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.4rem;
-  max-height: 460px;
+  padding: 0.35rem;
+  max-height: 52vh;
+  min-height: 220px;
   overflow-y: auto;
 }
 .move-row { display: grid; grid-template-columns: 2.4rem 1fr 1fr; align-items: center; gap: 0.2rem; }
@@ -580,7 +614,7 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   font-size: 0.92rem;
 }
 .move-cell:hover { background: var(--panel-2); }
-.move-cell.active { background: var(--accent-soft); color: #101a10; }
+.move-cell.active { background: var(--accent-soft); color: #101a10; font-weight: 700; }
 .move-badge { font-weight: 700; font-size: 0.85rem; }
 .move-cell.active .move-badge { filter: brightness(1.25); }
 .move-list.plain { display: flex; flex-wrap: wrap; gap: 2px; }

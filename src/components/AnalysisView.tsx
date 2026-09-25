@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { parseGame, settingsFor, settingsKey, toSan } from '../lib/analyze'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
-import type { GameReport, Score } from '../lib/types'
+import type { Color, GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
 import { Board } from './Board'
 import { Spinner } from './Spinner'
@@ -69,7 +69,7 @@ export function AnalysisView({
   const [flipped, setFlipped] = useState(
     game.hero ? game.black.username.toLowerCase() === game.hero.toLowerCase() : false,
   )
-  const [tab, setTab] = useState<'report' | 'moves'>('report')
+  const [tab, setTab] = useState<'report' | 'moves'>('moves')
   const [playing, setPlaying] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
   const [explore, setExplore] = useState<Exploration | null>(null)
@@ -229,7 +229,10 @@ export function AnalysisView({
     [legalMoves, picked, targets, tryMove],
   )
   const analyzed = report?.moves[ply - 1] ?? null
-  const orientation = flipped ? 'black' : 'white'
+  const orientation: Color = flipped ? 'black' : 'white'
+  // Whoever's pieces start at the far edge sits above the board.
+  const topColor: Color = flipped ? 'white' : 'black'
+  const bottomColor: Color = flipped ? 'black' : 'white'
 
   // Prefer a score the engine has actually returned for this position. While
   // the game is still being searched that is the live scan result; afterwards
@@ -252,11 +255,7 @@ export function AnalysisView({
         <button className="ghost" onClick={onBack}>
           ← Games
         </button>
-        <div className="matchup">
-          <PlayerTag name={game.white.username} rating={game.white.rating} color="white" />
-          <span className="result">{scoreline(parsed.result)}</span>
-          <PlayerTag name={game.black.username} rating={game.black.rating} color="black" />
-        </div>
+        <span className="result">{scoreline(parsed.result)}</span>
         <div className="header-side">
           {game.timeClass && <span className="chip">{game.timeClass}</span>}
           {game.url && (
@@ -269,6 +268,13 @@ export function AnalysisView({
 
       <div className="analysis-body">
         <div className="board-column">
+          <PlayerStrip
+            name={topColor === 'white' ? game.white.username : game.black.username}
+            rating={topColor === 'white' ? game.white.rating : game.black.rating}
+            color={topColor}
+            accuracy={report?.[topColor].accuracy}
+          />
+
           <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <EvalBar
               score={score}
@@ -292,6 +298,13 @@ export function AnalysisView({
               onSquareClick={onSquare}
             />
           </div>
+
+          <PlayerStrip
+            name={bottomColor === 'white' ? game.white.username : game.black.username}
+            rating={bottomColor === 'white' ? game.white.rating : game.black.rating}
+            color={bottomColor}
+            accuracy={report?.[bottomColor].accuracy}
+          />
 
           <div className="controls">
             <button onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
@@ -432,13 +445,29 @@ function AnalysisProgress({
   )
 }
 
-function PlayerTag({ name, rating, color }: { name: string; rating?: number; color: 'white' | 'black' }) {
+/** The row above and below the board carrying whose move it is and how they did. */
+function PlayerStrip({
+  name,
+  rating,
+  color,
+  accuracy,
+}: {
+  name: string
+  rating?: number
+  color: Color
+  accuracy?: number
+}) {
   return (
-    <span className="player-tag">
-      <span className={`dot ${color}`} />
-      {name}
+    <div className="player-strip">
+      <span className={`piece-dot ${color}`} />
+      <span className="player-name">{name}</span>
       {rating ? <span className="rating">{rating}</span> : null}
-    </span>
+      {accuracy !== undefined && (
+        <span className="player-accuracy" title="Accuracy for this game">
+          {accuracy.toFixed(1)}
+        </span>
+      )}
+    </div>
   )
 }
 

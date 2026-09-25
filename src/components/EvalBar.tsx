@@ -22,6 +22,12 @@ export function EvalBar({ score, orientation, provisional }: Props) {
   const label = formatScoreCompact(score, 'white')
   const exact = formatScore(score, 'white')
 
+  // The number sits inside whichever side is ahead, the way a player expects
+  // to read it: a positive score against White's block, a negative one against
+  // Black's. Which end of the bar that is depends on how the board is turned.
+  const whiteAhead = white >= 50
+  const labelAtBottom = whiteAhead === bottomIsWhite
+
   return (
     <div
       className={`eval-bar${bottomIsWhite ? '' : ' flipped'}${provisional ? ' provisional' : ''}`}
@@ -31,7 +37,9 @@ export function EvalBar({ score, orientation, provisional }: Props) {
     >
       <div className="eval-fill" style={{ height: `${bottomShare}%` }} />
       <span className="eval-middle" />
-      <span className="eval-label">{label}</span>
+      <span className={`eval-label${labelAtBottom ? '' : ' at-top'}${whiteAhead ? '' : ' on-black'}`}>
+        {label}
+      </span>
     </div>
   )
 }
