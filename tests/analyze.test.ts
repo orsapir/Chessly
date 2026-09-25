@@ -11,17 +11,20 @@ import {
   settingsKey,
 } from '../src/lib/analyze'
 import type { Analyser } from '../src/lib/engine'
+import { lookupBook } from '../src/lib/openings'
 import type { PositionEval } from '../src/lib/types'
 
 test('depth settings clamp, and only deep runs get a scan pass', () => {
   assert.deepEqual(settingsFor(12), { depth: 12, scanDepth: 12 })
-  assert.deepEqual(settingsFor(18), { depth: 18, scanDepth: 12 })
-  assert.deepEqual(settingsFor(16), { depth: 16, scanDepth: 12 })
+  // The scan sits three plies below the target, to a ceiling of 18.
+  assert.deepEqual(settingsFor(18), { depth: 18, scanDepth: 15 })
+  assert.deepEqual(settingsFor(16), { depth: 16, scanDepth: 13 })
+  assert.deepEqual(settingsFor(24), { depth: 24, scanDepth: 18 }, 'the ceiling holds')
   assert.equal(settingsFor(99).depth, MAX_DEPTH)
   assert.equal(settingsFor(1).depth, MIN_DEPTH)
   assert.equal(settingsFor(14.6).depth, 15)
   assert.equal(settingsKey(settingsFor(12)), 'd12')
-  assert.equal(settingsKey(settingsFor(18)), 's12d18')
+  assert.equal(settingsKey(settingsFor(18)), 's15d18')
 })
 
 test('the node ceiling doubles every two plies of depth', () => {
@@ -129,7 +132,7 @@ test('full analysis gives every position the chosen depth', async () => {
 
   // The two-pass form scans shallow first and only deepens some of the game.
   const twoPass = settingsFor(20)
-  assert.equal(twoPass.scanDepth, 12)
+  assert.equal(twoPass.scanDepth, 17)
 
   // Asked for exhaustively, there is one pass and it is the full depth.
   const full = settingsFor(20, true)
@@ -138,7 +141,15 @@ test('full analysis gives every position the chosen depth', async () => {
 
   await analyzeGame(PGN, engine, { settings: full })
   assert.equal(asked.length, positions.length, 'every position searched exactly once')
-  const outsideBook = asked.filter((call) => call.index >= 6)
+
+  // Book positions are deliberately capped, so work out where theory ends
+  // rather than assuming - the opening database decides that, not this test.
+  const sans = parseGame(PGN).moves.map((move) => move.san)
+  let bookPlies = 0
+  while (bookPlies < sans.length && lookupBook(sans.slice(0, bookPlies + 1)).inBook) bookPlies++
+
+  const outsideBook = asked.filter((call) => call.index >= bookPlies)
+  assert.ok(outsideBook.length > 0, 'the game leaves book at some point')
   assert.ok(
     outsideBook.every((call) => call.depth === 20),
     'nothing outside the book is skimmed',

@@ -12,7 +12,7 @@ import {
   winPercent,
   type ClassifyInput,
 } from '../src/lib/evaluate'
-import { detectOpening, lookupBook } from '../src/lib/openings'
+import { detectOpening, identifyOpening, lookupBook } from '../src/lib/openings'
 import { sacrificeValue } from '../src/lib/see'
 
 test('win percentage is centred, monotonic and bounded', () => {
@@ -123,9 +123,22 @@ test('a knight offered for a pawn counts as material given up', () => {
 
 test('the book knows theory and stops at the edge of it', () => {
   assert.ok(lookupBook(['e4', 'e5', 'Nf3']).inBook)
-  assert.equal(lookupBook(['a4', 'h5']).inBook, false)
-  assert.equal(detectOpening(['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6']), 'Sicilian, Najdorf')
-  assert.equal(detectOpening(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5']), 'Ruy López')
+  assert.equal(lookupBook(['a4', 'h5']).inBook, false, 'no named line continues a4 h5')
+  assert.equal(
+    detectOpening(['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6']),
+    'Sicilian Defense: Najdorf Variation',
+  )
+  assert.equal(identifyOpening(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])?.eco, 'C60')
+})
+
+test('a named line stops counting as book long before the database runs out', () => {
+  // Theory named this far, but a Book verdict past the opening would excuse
+  // moves the player actually chose and drop them from the accuracy figure.
+  const long = 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be3 e5 Nb3 Be6 f3 Be7 Qd2 O-O'.split(' ')
+  assert.ok(long.length > 16)
+  assert.ok(identifyOpening(long), 'still nameable')
+  assert.equal(lookupBook(long).inBook, false, 'but not still book')
+  assert.equal(lookupBook(long.slice(0, 10)).inBook, true)
 })
 
 test('a PGN becomes one position per ply', () => {

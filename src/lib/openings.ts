@@ -1,150 +1,90 @@
+import { OPENING_DATA } from './openings.data'
+
 /**
- * A compact opening book. Keys are space-separated SAN move sequences; the
- * value is the name shown in the report. Every prefix of every key counts as
- * "in book", which is what turns the first handful of moves grey instead of
- * praising a player for memorising 1. e4.
+ * The opening book, from the Lichess opening database (3,815 named lines with
+ * their ECO codes). Two questions are asked of it and each gets the structure
+ * it deserves:
+ *
+ * - "Is this still theory?" needs a prefix test. The data is sorted by move
+ *   sequence, so a binary search finds whether any known line starts with what
+ *   has been played - no need to hold every prefix in memory.
+ * - "What is this opening called?" needs exact lookup, which is a plain map.
  */
-const OPENINGS: Record<string, string> = {
-  // 1. e4
-  e4: "King's Pawn Opening",
-  'e4 e5': "King's Pawn Game",
-  'e4 e5 Nf3': "King's Knight Opening",
-  'e4 e5 Nf3 Nc6 Bb5': 'Ruy López',
-  'e4 e5 Nf3 Nc6 Bb5 a6': 'Ruy López, Morphy Defence',
-  'e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O': 'Ruy López, Closed',
-  'e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Nxe4': 'Ruy López, Open',
-  'e4 e5 Nf3 Nc6 Bb5 a6 Bxc6': 'Ruy López, Exchange',
-  'e4 e5 Nf3 Nc6 Bb5 Nf6': 'Ruy López, Berlin Defence',
-  'e4 e5 Nf3 Nc6 Bc4': 'Italian Game',
-  'e4 e5 Nf3 Nc6 Bc4 Bc5': 'Giuoco Piano',
-  'e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d4': 'Italian Game, Main Line',
-  'e4 e5 Nf3 Nc6 Bc4 Bc5 b4': 'Evans Gambit',
-  'e4 e5 Nf3 Nc6 Bc4 Nf6': 'Two Knights Defence',
-  'e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Nxd5': 'Two Knights, Fried Liver',
-  'e4 e5 Nf3 Nc6 d4': 'Scotch Game',
-  'e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Bc5': 'Scotch Game, Classical',
-  'e4 e5 Nf3 Nc6 Nc3': 'Three Knights Game',
-  'e4 e5 Nf3 Nc6 Nc3 Nf6': 'Four Knights Game',
-  'e4 e5 Nf3 Nf6': "Petrov's Defence",
-  'e4 e5 Nf3 d6': 'Philidor Defence',
-  'e4 e5 Nc3': 'Vienna Game',
-  'e4 e5 f4': "King's Gambit",
-  'e4 e5 Bc4': "Bishop's Opening",
-  'e4 e5 d4': 'Centre Game',
-  'e4 c5': 'Sicilian Defence',
-  'e4 c5 Nf3': 'Sicilian Defence, Open',
-  'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6': 'Sicilian, Najdorf',
-  'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6': 'Sicilian, Dragon',
-  'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 e6': 'Sicilian, Scheveningen',
-  'e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6': 'Sicilian, Accelerated Dragon',
-  'e4 c5 Nf3 e6 d4 cxd4 Nxd4 a6': 'Sicilian, Kan',
-  'e4 c5 Nf3 Nc6 Bb5': 'Sicilian, Rossolimo',
-  'e4 c5 Nf3 d6 Bb5+': 'Sicilian, Moscow',
-  'e4 c5 Nc3': 'Sicilian, Closed',
-  'e4 c5 c3': 'Sicilian, Alapin',
-  'e4 c5 d4 cxd4 c3': 'Sicilian, Smith-Morra Gambit',
-  'e4 c5 f4': 'Sicilian, Grand Prix Attack',
-  'e4 e6': 'French Defence',
-  'e4 e6 d4 d5 Nc3 Bb4': 'French, Winawer',
-  'e4 e6 d4 d5 Nc3 Nf6': 'French, Classical',
-  'e4 e6 d4 d5 Nd2': 'French, Tarrasch',
-  'e4 e6 d4 d5 e5': 'French, Advance',
-  'e4 e6 d4 d5 exd5': 'French, Exchange',
-  'e4 c6': 'Caro-Kann Defence',
-  'e4 c6 d4 d5 Nc3 dxe4 Nxe4': 'Caro-Kann, Main Line',
-  'e4 c6 d4 d5 e5': 'Caro-Kann, Advance',
-  'e4 c6 d4 d5 exd5 cxd5': 'Caro-Kann, Exchange',
-  'e4 d5': 'Scandinavian Defence',
-  'e4 d5 exd5 Qxd5 Nc3 Qa5': 'Scandinavian, Main Line',
-  'e4 d6': 'Pirc Defence',
-  'e4 g6': 'Modern Defence',
-  'e4 Nf6': "Alekhine's Defence",
-  'e4 Nc6': 'Nimzowitsch Defence',
-  'e4 b6': "Owen's Defence",
-  'e4 e5 Nf3 Nc6 Bc4 Bc5 c3': 'Italian Game, Giuoco Pianissimo',
+const LINES = OPENING_DATA.split('\n')
 
-  // 1. d4
-  d4: "Queen's Pawn Opening",
-  'd4 d5': "Queen's Pawn Game",
-  'd4 d5 c4': "Queen's Gambit",
-  'd4 d5 c4 dxc4': "Queen's Gambit Accepted",
-  'd4 d5 c4 e6': "Queen's Gambit Declined",
-  'd4 d5 c4 e6 Nc3 Nf6 Bg5': "Queen's Gambit Declined, Classical",
-  'd4 d5 c4 e6 Nf3 Nf6 Nc3 c6': 'Semi-Slav Defence',
-  'd4 d5 c4 c6': 'Slav Defence',
-  'd4 d5 c4 Nc6': 'Chigorin Defence',
-  'd4 d5 c4 e5': 'Albin Counter-Gambit',
-  'd4 d5 Bf4': 'London System',
-  'd4 d5 Nf3 Nf6 Bf4': 'London System',
-  'd4 Nf6 Nf3 e6 Bf4': 'London System',
-  'd4 d5 Nf3 Nf6 e3': 'Colle System',
-  'd4 d5 e4': 'Blackmar-Diemer Gambit',
-  'd4 Nf6': 'Indian Defence',
-  'd4 Nf6 c4': 'Indian Game',
-  'd4 Nf6 c4 e6 Nc3 Bb4': 'Nimzo-Indian Defence',
-  'd4 Nf6 c4 e6 Nf3 b6': "Queen's Indian Defence",
-  'd4 Nf6 c4 e6 g3': 'Catalan Opening',
-  'd4 Nf6 c4 g6 Nc3 Bg7 e4 d6': "King's Indian Defence",
-  'd4 Nf6 c4 g6 Nc3 d5': 'Grünfeld Defence',
-  'd4 Nf6 c4 c5 d5 e6': 'Benoni Defence',
-  'd4 Nf6 c4 c5 d5 b5': 'Benko Gambit',
-  'd4 Nf6 c4 e5': 'Budapest Gambit',
-  'd4 Nf6 Bg5': 'Trompowsky Attack',
-  'd4 f5': 'Dutch Defence',
-  'd4 d6': 'Rat Defence',
-  'd4 g6': 'Modern Defence',
-  'd4 e6': "Queen's Pawn, Horwitz Defence",
+/** Move sequences only, sorted, parallel to LINES. */
+const SEQUENCES: string[] = []
+/** Move sequence to its name and ECO code. */
+const NAMED = new Map<string, { eco: string; name: string }>()
 
-  // Flank openings
-  c4: 'English Opening',
-  'c4 e5': 'English, Reversed Sicilian',
-  'c4 c5': 'English, Symmetrical',
-  'c4 Nf6': 'English, Anglo-Indian',
-  'c4 e6': 'English, Agincourt Defence',
-  Nf3: 'Réti Opening',
-  'Nf3 d5 c4': 'Réti Opening',
-  'Nf3 Nf6 g3': "King's Indian Attack",
-  g3: "Benko's Opening",
-  b3: 'Nimzo-Larsen Attack',
-  f4: "Bird's Opening",
-  b4: 'Sokolsky Opening',
-  Nc3: 'Dunst Opening',
-  e3: "Van 't Kruijs Opening",
+let deepest = 0
+for (const line of LINES) {
+  const firstTab = line.indexOf('\t')
+  const secondTab = line.indexOf('\t', firstTab + 1)
+  if (firstTab < 0 || secondTab < 0) continue
+  const moves = line.slice(0, firstTab)
+  SEQUENCES.push(moves)
+  NAMED.set(moves, { eco: line.slice(firstTab + 1, secondTab), name: line.slice(secondTab + 1) })
+  const plies = moves.split(' ').length
+  if (plies > deepest) deepest = plies
 }
 
-/** Every prefix of every known line: used to decide whether we are still in book. */
-const BOOK_POSITIONS = new Set<string>()
-/** Exact lines only: used to name the opening. */
-const NAMED_LINES = new Map<string, string>(Object.entries(OPENINGS))
+/** Longest line the book knows. Naming may go this far. */
+export const BOOK_DEPTH = deepest
 
-for (const line of NAMED_LINES.keys()) {
-  const moves = line.split(' ')
-  for (let i = 1; i <= moves.length; i++) BOOK_POSITIONS.add(moves.slice(0, i).join(' '))
+/**
+ * How far a move may still be called "book".
+ *
+ * The database names every move order anyone has bothered to name, 1. a4
+ * included, and its longest lines run past thirty plies. Naming wants all of
+ * that. The Book verdict does not: it suppresses a judgement and takes the
+ * move out of the accuracy figure, so letting it run to the end of a named
+ * line would excuse a bad opening for having a name, and would drop half a
+ * theory-heavy game out of the accuracy calculation.
+ */
+const BOOK_VERDICT_PLIES = 16
+
+/** Index of the first sequence at or after `key`, by binary search. */
+function lowerBound(key: string): number {
+  let low = 0
+  let high = SEQUENCES.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (SEQUENCES[mid] < key) low = mid + 1
+    else high = mid
+  }
+  return low
 }
-
-/** Longest book line we bother matching, in plies. */
-export const BOOK_DEPTH = 20
 
 export interface BookMatch {
   inBook: boolean
   name: string | null
 }
 
-/** Looks up a position by the SAN moves that reached it. */
+/**
+ * Looks up a position by the SAN moves that reached it. In book means some
+ * named line starts with exactly these moves - not that these moves are
+ * themselves a named opening.
+ */
 export function lookupBook(sanMoves: string[]): BookMatch {
-  if (!sanMoves.length || sanMoves.length > BOOK_DEPTH) return { inBook: false, name: null }
+  if (!sanMoves.length || sanMoves.length > BOOK_VERDICT_PLIES) return { inBook: false, name: null }
   const key = sanMoves.join(' ')
-  if (!BOOK_POSITIONS.has(key)) return { inBook: false, name: null }
+  const index = lowerBound(key)
+  const candidate = SEQUENCES[index]
+  if (candidate === undefined) return { inBook: false, name: null }
+  if (candidate !== key && !candidate.startsWith(`${key} `)) return { inBook: false, name: null }
   return { inBook: true, name: detectOpening(sanMoves) }
 }
 
-/** The most specific opening name reached before the game left book. */
-export function detectOpening(sanMoves: string[]): string | null {
-  let name: string | null = null
-  for (let i = 1; i <= Math.min(sanMoves.length, BOOK_DEPTH); i++) {
-    const key = sanMoves.slice(0, i).join(' ')
-    if (!BOOK_POSITIONS.has(key)) break
-    name = NAMED_LINES.get(key) ?? name
+/** The most specific opening name the game reached, with its ECO code. */
+export function identifyOpening(sanMoves: string[]): { eco: string; name: string } | null {
+  for (let plies = Math.min(sanMoves.length, BOOK_DEPTH); plies >= 1; plies--) {
+    const hit = NAMED.get(sanMoves.slice(0, plies).join(' '))
+    if (hit) return hit
   }
-  return name
+  return null
+}
+
+export function detectOpening(sanMoves: string[]): string | null {
+  return identifyOpening(sanMoves)?.name ?? null
 }

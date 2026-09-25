@@ -73,8 +73,12 @@ export const PRESETS: { label: string; depth: number; detail: string }[] = [
   { label: 'Deep', depth: 24, detail: 'Slow and stubborn, for a game you care about.' },
 ]
 
-/** Scanning deeper than this buys little; the deep pass is where depth pays. */
-const MAX_SCAN_DEPTH = 12
+/**
+ * Depth of the first pass. Every move that does not earn a second look is
+ * judged here, which is most of them, so this is the floor on the whole
+ * report's quality rather than a detail of the scheduling.
+ */
+const MAX_SCAN_DEPTH = 18
 
 /** Below this, a uniform search is cheap enough that two passes are pointless. */
 const TWO_PASS_FROM = 15
