@@ -411,7 +411,10 @@ export function AnalysisView({
   )
 
   const summary = report && (
-    <ReportSummary report={report} whiteName={game.white.username} blackName={game.black.username} />
+    <>
+      <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
+      <ReportSummary report={report} whiteName={game.white.username} blackName={game.black.username} />
+    </>
   )
 
   const board = (
@@ -492,12 +495,7 @@ export function AnalysisView({
           {settingsBlock}
           {summary}
           <div className="review-scroll">
-            {report && (
-              <>
-                <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
-                <ReportDetail report={report} onSelect={jump} />
-              </>
-            )}
+            {report && <ReportDetail report={report} onSelect={jump} />}
           </div>
         </div>
       </div>
@@ -519,12 +517,7 @@ export function AnalysisView({
 
           <div className="review-scroll">
             {moveList}
-            {report && (
-              <>
-                <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
-                <ReportDetail report={report} onSelect={jump} />
-              </>
-            )}
+            {report && <ReportDetail report={report} onSelect={jump} />}
           </div>
 
           <div className="review-foot">

@@ -436,6 +436,7 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 
 .comment {
   background: var(--panel-2);
+  overflow-anchor: none;
   border-left: 4px solid var(--line);
   border-radius: 4px;
   padding: 0.6rem 0.7rem;
@@ -455,6 +456,9 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 
 .engine-lines {
   background: var(--panel);
+  /* Its height never changes, and the browser should not go looking for
+     something to hold still when the lines inside it do. */
+  overflow-anchor: none;
   margin-top: 0.25rem;
   border-radius: 4px;
   padding: 0.35rem 0.4rem 0.4rem;
@@ -624,20 +628,20 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 .progress-row { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 0.85rem; }
 
 .eval-graph {
-  border: 1px solid var(--line);
   width: 100%;
-  height: 110px;
-  /* A flex item in the panel column, so it has to be told not to squash. */
-  flex: none;
-  border-radius: 8px;
-  background: #f0eee9;
-  cursor: pointer;
+  height: auto;
   display: block;
+  cursor: pointer;
+  /* Sits at the top of the panel, under its header. */
+  border-bottom: 1px solid var(--line);
+  flex: none;
 }
-.graph-black { fill: #3a3733; }
-.graph-white { fill: #efeee9; }
-.graph-mid { stroke: #8c867f; stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.5; }
-.graph-cursor { stroke: var(--accent); stroke-width: 2; }
+.graph-black { fill: #3b3835; }
+.graph-white { fill: #f4f3f1; }
+.graph-mid { stroke: #8c867f; stroke-width: 0.8; stroke-dasharray: 3 3; opacity: 0.45; }
+.graph-cursor line { stroke: var(--accent); stroke-width: 1.4; }
+.graph-cursor circle { fill: var(--accent); stroke: #1c1b19; stroke-width: 1; }
+.graph-mark { stroke: #1c1b19; stroke-width: 1.2; }
 
 /* ---------- report ---------- */
 
@@ -833,6 +837,21 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   .analysis.phone .review-settings { order: 0; }
   .analysis.phone .review-scroll { order: 0; }
   .analysis.phone .comment { margin: 0; }
+  /* A fixed box, not a minimum: the verdict for one move runs to three lines
+     and for the next to one, and between the board and the controls that
+     difference moves the whole page under your thumb. */
+  .analysis.phone .comment.verdict,
+  .analysis.phone .comment.neutral {
+    height: 6.3rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .analysis.phone .comment.verdict > span:not(.comment-eval) {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
 /* One row of moves that scrolls sideways, current move centred. */

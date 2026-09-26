@@ -128,6 +128,12 @@ export const CLASSIFICATION_ORDER: Classification[] = [
   'blunder',
 ]
 
+/**
+ * How far the search of a position and the search of what follows it may
+ * disagree before the difference is treated as a real loss rather than noise.
+ */
+export const BEST_DISAGREEMENT = 2
+
 /** Material, in centipawns, a move must give up before it can be brilliant. */
 export const BRILLIANT_SACRIFICE = 180
 
@@ -173,7 +179,10 @@ export function classify(input: ClassifyInput): Classification {
     return 'great'
   }
 
-  if (playedBest || loss <= 0.5) return 'best'
+  // Playing the engine's move settles it only while the two searches roughly
+  // agree. Past that the number on the board has moved, whoever picked the
+  // move, and a verdict that ignores it is the one a player catches.
+  if (loss <= 0.5 || (playedBest && loss < BEST_DISAGREEMENT)) return 'best'
   if (loss < 2) return 'excellent'
   if (loss < 5) return 'good'
 

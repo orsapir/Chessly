@@ -76,6 +76,16 @@ test('every classification is reachable', () => {
   assert.equal(classify({ ...base, playedUci: 'd2d4', winBefore: 90, winAfter: 70 }), 'miss')
 })
 
+test('the engine picking the move does not excuse a drop it can measure', () => {
+  // The played move was the engine's own first choice, but searching the
+  // position it leads to says the game moved. The number on the board wins:
+  // scoring this "best" is what had the report disagreeing with itself.
+  assert.equal(classify({ ...base, winBefore: 50, winAfter: 42 }), 'inaccuracy')
+  assert.equal(classify({ ...base, winBefore: 50, winAfter: 35 }), 'mistake')
+  // Two searches of one position disagreeing by a whisker is not a mistake.
+  assert.equal(classify({ ...base, winBefore: 50, winAfter: 48.5 }), 'best')
+})
+
 test('brilliance is not awarded for giving material back while crushing', () => {
   assert.equal(classify({ ...base, sacrifice: 400, winBefore: 96, winAfter: 95 }), 'best')
 })

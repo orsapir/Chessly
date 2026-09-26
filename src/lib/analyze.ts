@@ -433,16 +433,17 @@ function describeMove({ move, ply, before, after, sans, onlyMove }: DescribeInpu
   const bestMoveUci = before?.lines[0]?.pv[0] ?? null
 
   const winBefore = winPercent(bestScore, color)
-  const playedBest = bestMoveUci !== null && bestMoveUci === move.uci
-  // Two searches of the same position can disagree by a fraction of a percent;
-  // when the player found the engine's move there is nothing to charge them for.
-  const winAfter = playedBest ? winBefore : winPercent(playedScore, color)
+  // Measured either way, including when the player found the engine's move.
+  // Those two numbers describe the same position, so they normally agree to
+  // within a fraction of a percent - and where they do not, the second search
+  // is the one that looked at the position itself rather than reaching it down
+  // a line, so it is the one to believe. Taking the loss on trust here was
+  // scoring a move "best" while the bar visibly dropped under it.
+  const winAfter = winPercent(playedScore, color)
   const loss = Math.max(0, winBefore - winAfter)
 
   const sign = color === 'white' ? 1 : -1
-  const cpLoss = playedBest
-    ? 0
-    : Math.min(1000, Math.max(0, cpOf(bestScore) * sign - cpOf(playedScore) * sign))
+  const cpLoss = Math.min(1000, Math.max(0, cpOf(bestScore) * sign - cpOf(playedScore) * sign))
 
   const { inBook, name } = lookupBook(sans.slice(0, ply + 1))
   const legalMoveCount = new Chess(move.fenBefore).moves().length
