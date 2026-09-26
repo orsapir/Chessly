@@ -11,7 +11,11 @@ type View =
   | { kind: 'analysis'; game: GameMeta; from: View }
 
 const LAST_USER = 'chessly:last-user'
-const LAST_DEPTH = 'chessly:depth'
+/**
+ * Versioned: a depth remembered from an older build is not a choice the player
+ * made against the current default, and the old key held 16 on phones.
+ */
+const LAST_DEPTH = 'chessly:depth-v2'
 const LAST_EXHAUSTIVE = 'chessly:exhaustive'
 
 /** What a game is analysed at until the slider says otherwise. */

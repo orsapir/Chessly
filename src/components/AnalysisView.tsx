@@ -5,6 +5,7 @@ import { capturedMaterial } from '../lib/material'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { Color, GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import { Board } from './Board'
 import { ClassBadge } from './ClassBadge'
 import { Icon } from './Icon'
@@ -66,6 +67,7 @@ export function AnalysisView({
   onExhaustiveChange,
   onBack,
 }: Props) {
+  const compact = useMediaQuery('(max-width: 600px)')
   const settings = useMemo(() => settingsFor(depth, exhaustive), [depth, exhaustive])
   const parsed = useMemo(() => parseGame(game.pgn), [game.pgn])
   const { report, running, progress, liveScores, error, fromCache, run, cancel, analysePosition } =
@@ -302,175 +304,232 @@ export function AnalysisView({
       ? { from: analyzed.bestMoveUci.slice(0, 2), to: analyzed.bestMoveUci.slice(2, 4) }
       : null
 
-  return (
-    <div className="analysis">
-      <header className="analysis-header">
-        <button className="icon-button" onClick={onBack} title="Back to the game list" aria-label="Back to games">
-          <Icon name="back" />
+  // A phone wants the review in a different order, and the move list along the
+  // bottom rather than down the side, so the pieces are built once and placed
+  // twice rather than styled into a different shape.
+  const verdict = variation ? (
+    <VariationBar
+      variation={variation}
+      gameMove={variation.fromPly < total ? parsed.moves[variation.fromPly].san : null}
+      onTakeBack={takeBack}
+      onBack={backToGame}
+    />
+  ) : running ? (
+    <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
+  ) : (
+    <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
+  )
+
+  const engineBlock = (
+    <EngineLines
+      lines={engine?.lines ?? []}
+      depth={exploreDepth}
+      ply={engine?.ply ?? boardPly}
+      stale={engine?.fen !== fen}
+      busy={running}
+      onPlay={playSan}
+    />
+  )
+
+  const moveList = report ? (
+    <MoveList moves={report.moves} currentPly={ply} onSelect={jump} strip={compact} />
+  ) : (
+    <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={jump} />
+  )
+
+  const controls = (
+    <div className="controls">
+      <button
+        className="icon-button"
+        onClick={() => setFlipped((value) => !value)}
+        title="Flip board (f)"
+        aria-label="Flip board"
+      >
+        <Icon name="flip" />
+      </button>
+      <button className="icon-button" onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
+        <Icon name="start" />
+      </button>
+      <button className="icon-button" onClick={() => jump(ply - 1)} title="Previous (←)" aria-label="Previous move">
+        <Icon name="prev" />
+      </button>
+      <button
+        className={`icon-button play${autoPlaying ? ' active' : ''}`}
+        onClick={() => {
+          if (autoPlaying) return setPlaying(false)
+          if (ply >= total) go(0)
+          setPlaying(true)
+        }}
+        title={autoPlaying ? 'Pause (space)' : 'Play through the game (space)'}
+        aria-label={autoPlaying ? 'Pause' : 'Play through the game'}
+      >
+        <Icon name={autoPlaying ? 'pause' : 'play'} />
+      </button>
+      <button className="icon-button" onClick={() => jump(ply + 1)} title="Next (→)" aria-label="Next move">
+        <Icon name="next" />
+      </button>
+      <button className="icon-button" onClick={() => jump(total)} title="End (↓)" aria-label="Go to end">
+        <Icon name="end" />
+      </button>
+      <span className="ply-counter">
+        {ply}/{total}
+      </span>
+    </div>
+  )
+
+  const settingsBlock = showSettings && (
+    <div className="review-settings">
+      <DepthControl
+        depth={depth}
+        onChange={onDepthChange}
+        exhaustive={exhaustive}
+        onExhaustiveChange={onExhaustiveChange}
+        disabled={running}
+      />
+      {fromCache && (
+        <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, settings, true)}>
+          Re-analyse from scratch
         </button>
-        <span className="result">{scoreline(parsed.result)}</span>
-        <div className="header-side">
-          {game.timeClass && <span className="chip">{game.timeClass}</span>}
-          {game.url && (
-            <a className="chip link" href={game.url} target="_blank" rel="noreferrer">
-              chess.com ↗
-            </a>
-          )}
+      )}
+    </div>
+  )
+
+  const reviewHead = (
+    <div className="review-head">
+      <Icon name="chart" size={18} />
+      <strong>Game Review</strong>
+      <button
+        className={`icon-button${showSettings ? ' on' : ''}`}
+        onClick={() => setShowSettings((value) => !value)}
+        title="Analysis settings"
+        aria-label="Analysis settings"
+        aria-expanded={showSettings}
+      >
+        <Icon name="gear" size={18} />
+      </button>
+    </div>
+  )
+
+  const summary = report && (
+    <ReportSummary report={report} whiteName={game.white.username} blackName={game.black.username} />
+  )
+
+  const board = (
+    <div className="board-column">
+      <PlayerStrip
+        name={topColor === 'white' ? game.white.username : game.black.username}
+        rating={topColor === 'white' ? game.white.rating : game.black.rating}
+        color={topColor}
+        accuracy={report?.[topColor].accuracy}
+        captured={material[topColor]}
+        edge={material.edge[topColor]}
+      />
+
+      <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <EvalBar
+          score={score}
+          orientation={orientation}
+          provisional={running || report?.preliminary === true}
+        />
+        <Board
+          fen={fen}
+          orientation={orientation}
+          lastMove={lastMove}
+          suggestion={variation ? null : suggestion}
+          badge={variation ? null : (analyzed?.classification ?? null)}
+          selected={picked}
+          targets={targets}
+          onSquareClick={onSquare}
+        />
+      </div>
+
+      <PlayerStrip
+        name={bottomColor === 'white' ? game.white.username : game.black.username}
+        rating={bottomColor === 'white' ? game.white.rating : game.black.rating}
+        color={bottomColor}
+        accuracy={report?.[bottomColor].accuracy}
+        captured={material[bottomColor]}
+        edge={material.edge[bottomColor]}
+      />
+
+      {engineBlock}
+    </div>
+  )
+
+  const header = (
+    <header className="analysis-header">
+      <button className="icon-button" onClick={onBack} title="Back to the game list" aria-label="Back to games">
+        <Icon name="back" />
+      </button>
+      <span className="result">{scoreline(parsed.result)}</span>
+      <div className="header-side">
+        {game.timeClass && <span className="chip">{game.timeClass}</span>}
+        {game.url && (
+          <a className="chip link" href={game.url} target="_blank" rel="noreferrer">
+            chess.com ↗
+          </a>
+        )}
+      </div>
+    </header>
+  )
+
+  // The phone: board, what the engine makes of it, then the moves and the
+  // controls pinned to the bottom of the screen where a thumb is. The report
+  // itself sits below, for anyone who scrolls to it.
+  if (compact) {
+    return (
+      <div className="analysis phone">
+        {header}
+        {board}
+        {verdict}
+        <div className="phone-bar">
+          {moveList}
+          {controls}
         </div>
-      </header>
-
-      <div className="analysis-body">
-        <div className="board-column">
-          <PlayerStrip
-            name={topColor === 'white' ? game.white.username : game.black.username}
-            rating={topColor === 'white' ? game.white.rating : game.black.rating}
-            color={topColor}
-            accuracy={report?.[topColor].accuracy}
-            captured={material[topColor]}
-            edge={material.edge[topColor]}
-          />
-
-          <div className="board-wrap" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-            <EvalBar
-              score={score}
-              orientation={orientation}
-              provisional={running || report?.preliminary === true}
-            />
-            <Board
-              fen={fen}
-              orientation={orientation}
-              lastMove={lastMove}
-              suggestion={variation ? null : suggestion}
-              badge={variation ? null : (analyzed?.classification ?? null)}
-              selected={picked}
-              targets={targets}
-              onSquareClick={onSquare}
-            />
-          </div>
-
-          <PlayerStrip
-            name={bottomColor === 'white' ? game.white.username : game.black.username}
-            rating={bottomColor === 'white' ? game.white.rating : game.black.rating}
-            color={bottomColor}
-            accuracy={report?.[bottomColor].accuracy}
-            captured={material[bottomColor]}
-            edge={material.edge[bottomColor]}
-          />
-
-          <EngineLines
-            lines={engine?.lines ?? []}
-            depth={exploreDepth}
-            ply={engine?.ply ?? boardPly}
-            stale={engine?.fen !== fen}
-            busy={running}
-            onPlay={playSan}
-          />
-        </div>
-
-        <aside className="review-panel">
-          <div className="review-head">
-            <Icon name="chart" size={18} />
-            <strong>Game Review</strong>
-            <button
-              className={`icon-button${showSettings ? ' on' : ''}`}
-              onClick={() => setShowSettings((value) => !value)}
-              title="Analysis settings"
-              aria-label="Analysis settings"
-              aria-expanded={showSettings}
-            >
-              <Icon name="gear" size={18} />
-            </button>
-          </div>
-
-          {showSettings && (
-            <div className="review-settings">
-              <DepthControl
-                depth={depth}
-                onChange={onDepthChange}
-                exhaustive={exhaustive}
-                onExhaustiveChange={onExhaustiveChange}
-                disabled={running}
-              />
-              {fromCache && (
-                <button className="ghost small rerun" onClick={() => void run(game.id, game.pgn, settings, true)}>
-                  Re-analyse from scratch
-                </button>
-              )}
-            </div>
-          )}
-
-          {error && <p className="error">{error}</p>}
-
-          {report && (
-            <ReportSummary
-              report={report}
-              whiteName={game.white.username}
-              blackName={game.black.username}
-            />
-          )}
-
+        {error && <p className="error">{error}</p>}
+        <div className="review-panel">
+          {reviewHead}
+          {settingsBlock}
+          {summary}
           <div className="review-scroll">
             {report && (
               <>
-                <MoveList moves={report.moves} currentPly={ply} onSelect={jump} />
                 <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
                 <ReportDetail report={report} onSelect={jump} />
               </>
             )}
-            {!report && <MoveListFallback moves={parsed.moves} currentPly={ply} onSelect={jump} />}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="analysis">
+      {header}
+
+      <div className="analysis-body">
+        {board}
+
+        <aside className="review-panel">
+          {reviewHead}
+          {settingsBlock}
+          {error && <p className="error">{error}</p>}
+          {summary}
+
+          <div className="review-scroll">
+            {moveList}
+            {report && (
+              <>
+                <EvalGraph moves={report.moves} currentPly={ply} onSelect={jump} />
+                <ReportDetail report={report} onSelect={jump} />
+              </>
+            )}
           </div>
 
           <div className="review-foot">
-            {variation ? (
-              <VariationBar
-                variation={variation}
-                gameMove={variation.fromPly < total ? parsed.moves[variation.fromPly].san : null}
-                onTakeBack={takeBack}
-                onBack={backToGame}
-              />
-            ) : running ? (
-              <AnalysisProgress progress={progress} settings={settings} onStop={cancel} />
-            ) : (
-              <MoveComment move={analyzed} opening={report?.opening ?? null} ply={ply} />
-            )}
-
-            <div className="controls">
-              <button
-                className="icon-button"
-                onClick={() => setFlipped((value) => !value)}
-                title="Flip board (f)"
-                aria-label="Flip board"
-              >
-                <Icon name="flip" />
-              </button>
-              <button className="icon-button" onClick={() => jump(0)} title="Start (↑)" aria-label="Go to start">
-                <Icon name="start" />
-              </button>
-              <button className="icon-button" onClick={() => jump(ply - 1)} title="Previous (←)" aria-label="Previous move">
-                <Icon name="prev" />
-              </button>
-              <button
-                className={`icon-button play${autoPlaying ? ' active' : ''}`}
-                onClick={() => {
-                  if (autoPlaying) return setPlaying(false)
-                  if (ply >= total) go(0)
-                  setPlaying(true)
-                }}
-                title={autoPlaying ? 'Pause (space)' : 'Play through the game (space)'}
-                aria-label={autoPlaying ? 'Pause' : 'Play through the game'}
-              >
-                <Icon name={autoPlaying ? 'pause' : 'play'} />
-              </button>
-              <button className="icon-button" onClick={() => jump(ply + 1)} title="Next (→)" aria-label="Next move">
-                <Icon name="next" />
-              </button>
-              <button className="icon-button" onClick={() => jump(total)} title="End (↓)" aria-label="Go to end">
-                <Icon name="end" />
-              </button>
-              <span className="ply-counter">
-                {ply}/{total}
-              </span>
-            </div>
+            {verdict}
+            {controls}
           </div>
         </aside>
       </div>

@@ -771,10 +771,84 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   .report.summary { order: 3; background: var(--panel); }
   .review-settings { order: 4; background: var(--panel); }
   .review-scroll { order: 5; background: var(--panel); border-radius: 0 0 var(--radius) var(--radius); padding: 0.6rem; }
+  .review-foot { order: 1; border-top: none; padding: 0.5rem 0 0.7rem; background: transparent; }
   /* Nothing is fighting for height in a stacked column, so let the list run. */
   .move-list { max-height: none; }
-  .review-foot { order: 1; border-top: none; padding: 0.5rem 0 0.7rem; background: transparent; }
   .home h1 { font-size: 1.9rem; }
   .game-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
   .game-row .game-meta { display: none; }
 }
+
+/* ---------- the phone ---------- */
+
+@media (max-width: 600px) {
+  /* Room at the foot of the page for the bar pinned over it. */
+  main { padding: 0.6rem 0.75rem 7rem; }
+  .topbar { padding: 0.55rem 0.8rem; }
+  .tagline { display: none; }
+  .footer { padding: 0.8rem; }
+
+  .analysis.phone { display: flex; flex-direction: column; gap: 0.4rem; }
+  .analysis.phone .analysis-header { margin-bottom: 0; gap: 0.4rem; }
+  .analysis.phone .analysis-header .result { font-size: 0.95rem; }
+  .analysis.phone .icon-button { padding: 0.3rem; }
+  .analysis.phone .phone-bar .icon-button { padding: 0.42rem; }
+
+  /* The board runs to both edges of the screen, as it does in any chess app:
+     a phone has no width to spare on page margins. */
+  .analysis.phone .board-column {
+    max-width: none;
+    margin: 0 -0.75rem;
+    gap: 0.25rem;
+  }
+  .analysis.phone .player-strip { padding: 0.15rem 0.75rem; }
+  .analysis.phone .board-wrap { gap: 0; }
+  .analysis.phone .board { border-radius: 0; }
+  .analysis.phone .eval-bar { border-radius: 0; width: 22px; }
+  .analysis.phone .eval-bar .eval-label { font-size: 0.55rem; }
+  .analysis.phone .engine-lines { margin: 0.3rem 0.75rem 0; }
+
+  /* Moves and controls sit at the bottom of the screen, where a thumb is, and
+     stay there while the report scrolls past underneath. Fixed rather than
+     sticky: sticky only keeps a thing in view as its own parent scrolls past,
+     it does not hold it against the edge of the screen. */
+  .phone-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    background: var(--panel);
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.28);
+    padding: 0.3rem 0.3rem calc(0.3rem + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .phone-bar .controls { gap: 0.15rem; }
+  .analysis.phone .review-panel { background: var(--panel); border-radius: var(--radius); }
+  .analysis.phone .review-head { order: 0; }
+  .analysis.phone .report.summary { order: 0; }
+  .analysis.phone .review-settings { order: 0; }
+  .analysis.phone .review-scroll { order: 0; }
+  .analysis.phone .comment { margin: 0; }
+}
+
+/* One row of moves that scrolls sideways, current move centred. */
+.move-list.strip {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-height: none;
+  min-height: 0;
+  scrollbar-width: none;
+  border-radius: 4px;
+}
+.move-list.strip::-webkit-scrollbar { display: none; }
+.move-list.strip .move-row { display: flex; flex: none; background: none; align-items: center; }
+.move-list.strip .move-number { padding: 0 0.3rem 0 0.5rem; font-size: 0.72rem; }
+.move-list.strip .move-cell { padding: 0.35rem 0.4rem; white-space: nowrap; }
+.move-list.strip.plain { padding: 0.2rem; }
