@@ -124,9 +124,15 @@ export function useAnalysis() {
    * One position, on demand, on the same engines the run uses. For trying a
    * move out: it queues behind at most one position of an analysis in flight.
    */
-  const analysePosition = useCallback(async (fen: string, depth: number) => {
+  const analysePosition = useCallback(async (fen: string, depth: number, multiPV = 1) => {
     pool.current ??= new EnginePool()
-    return pool.current.analyse(fen, { depth, multiPV: 1, maxNodes: nodeCapFor(depth), maxTimeMs: 20000 })
+    return pool.current.analyse(fen, {
+      depth,
+      multiPV,
+      // Several lines cost more per position, so the ceiling rises with them.
+      maxNodes: nodeCapFor(depth) * multiPV,
+      maxTimeMs: 20000,
+    })
   }, [])
 
   return { ...state, run, cancel, reset, analysePosition }

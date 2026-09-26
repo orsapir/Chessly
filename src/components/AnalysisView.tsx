@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
-import { parseGame, settingsFor, settingsKey, toSan } from '../lib/analyze'
+import { lineToSan, parseGame, settingsFor, settingsKey } from '../lib/analyze'
+import { capturedMaterial } from '../lib/material'
 import { CLASSIFICATION_META, formatScore } from '../lib/evaluate'
 import type { Color, GameReport, Score } from '../lib/types'
 import { useAnalysis } from '../lib/useAnalysis'
@@ -11,7 +12,7 @@ import { Spinner } from './Spinner'
 import { DepthControl } from './DepthControl'
 import { EvalBar } from './EvalBar'
 import { EvalGraph } from './EvalGraph'
-import { ExplorePanel, type ExploreLine } from './ExplorePanel'
+import { EngineLines, type EngineLineView } from './EngineLines'
 import { MoveList } from './MoveList'
 import { ReportDetail, ReportSummary } from './ReportPanel'
 
@@ -44,14 +45,17 @@ const PLAY_INTERVAL = 900
 /** Trying moves out has to answer between clicks, whatever the report ran at. */
 const EXPLORE_DEPTH = 18
 
-interface Exploration {
-  /** Position after the move being tried. */
-  fen: string
-  /** Position it was played from. */
-  from: string
-  yours: ExploreLine
-  game: ExploreLine | null
-  best: ExploreLine | null
+/** How many lines the engine offers for the position on the board. */
+const ENGINE_LINES = 3
+
+/** A settled position gets a moment before the engine is sent after it. */
+const ENGINE_DEBOUNCE = 220
+
+/** Moves played by hand from some point in the game: the "what if" line. */
+interface Variation {
+  /** The ply of the game it left from, so it can be put back. */
+  fromPly: number
+  moves: { san: string; uci: string; fen: string }[]
 }
 
 export function AnalysisView({
@@ -74,8 +78,9 @@ export function AnalysisView({
   const [showSettings, setShowSettings] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
-  const [explore, setExplore] = useState<Exploration | null>(null)
-  const exploreRun = useRef(0)
+  const [variation, setVariation] = useState<Variation | null>(null)
+  const [engine, setEngine] = useState<{ fen: string; ply: number; lines: EngineLineView[] } | null>(null)
+
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   /** A swipe is followed by a click; without this it would also pick up a piece. */
   const swipedAt = useRef(0)
@@ -99,6 +104,14 @@ export function AnalysisView({
     return () => clearTimeout(timer)
   }, [autoPlaying, ply, total])
 
+  /** Takes back the last move of the line, and the line itself with the first. */
+  const takeBack = useCallback(() => {
+    setPicked(null)
+    setVariation((current) =>
+      current && current.moves.length > 1 ? { ...current, moves: current.moves.slice(0, -1) } : null,
+    )
+  }, [])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
@@ -107,7 +120,9 @@ export function AnalysisView({
         go(next)
       }
       const actions: Record<string, () => void> = {
-        ArrowLeft: () => step(ply - 1),
+        // In a line of your own, back means take the move back rather than
+        // walking the game out from under it.
+        ArrowLeft: () => (variation ? takeBack() : step(ply - 1)),
         ArrowRight: () => step(ply + 1),
         ArrowUp: () => step(0),
         ArrowDown: () => step(total),
@@ -128,7 +143,7 @@ export function AnalysisView({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [autoPlaying, go, ply, total])
+  }, [autoPlaying, go, ply, takeBack, total, variation])
 
   // Phones have no arrow keys: swipe across the board to step through the game.
   const onTouchStart = (event: React.TouchEvent) => {
@@ -148,12 +163,11 @@ export function AnalysisView({
     jump(dx < 0 ? ply + 1 : ply - 1)
   }
 
-  /** Moving by hand takes the board back from the auto-play, and from exploring. */
+  /** Moving through the game takes the board back from auto-play and from a line. */
   const jump = useCallback(
     (next: number) => {
       setPlaying(false)
-      exploreRun.current++
-      setExplore(null)
+      setVariation(null)
       setPicked(null)
       go(next)
     },
@@ -162,7 +176,9 @@ export function AnalysisView({
 
   const currentMove = ply > 0 ? parsed.moves[ply - 1] : null
   const gameFen = ply === 0 ? parsed.positions[0] : parsed.positions[ply]
-  const fen = explore?.fen ?? gameFen
+  const fen = variation?.moves[variation.moves.length - 1]?.fen ?? gameFen
+  /** How far into the game the position on the board is, counting a line's moves. */
+  const boardPly = ply + (variation?.moves.length ?? 0)
 
   // Deep settings are far too slow to wait for between clicks.
   const exploreDepth = Math.min(settings.depth, EXPLORE_DEPTH)
@@ -173,49 +189,77 @@ export function AnalysisView({
     [legalMoves, picked],
   )
 
-  /** Leaves exploration and puts the game's own position back on the board. */
+  /** Puts the game's own position back on the board. */
   const backToGame = useCallback(() => {
-    exploreRun.current++
-    setExplore(null)
+    setVariation(null)
     setPicked(null)
   }, [])
 
-  const tryMove = useCallback(
-    async (from: string, to: string) => {
+  /**
+   * Plays a move on the board and keeps going from there. Off the game's path
+   * this is a line of your own, as long as you like - the game is always one
+   * button away.
+   */
+  const playMove = useCallback(
+    (from: string, to: string) => {
       const board = new Chess(fen)
-      const candidate = legalMoves.find((move) => move.from === from && move.to === to)
-      if (!candidate) return
-      const move = board.move({ from, to, promotion: 'q' })
+      let move
+      try {
+        move = board.move({ from, to, promotion: 'q' })
+      } catch {
+        return
+      }
       if (!move) return
-
-      const id = ++exploreRun.current
+      setPlaying(false)
       setPicked(null)
-      setExplore({ fen: move.after, from: fen, yours: { san: move.san, score: null }, game: null, best: null })
-
-      // The game's own continuation from this position, when there is one and
-      // we have not wandered off the game's path.
-      const gameMove = fen === gameFen && ply < total ? parsed.moves[ply] : null
-
-      const [afterYours, fromHere, afterGame] = await Promise.all([
-        analysePosition(move.after, exploreDepth),
-        analysePosition(fen, exploreDepth),
-        gameMove ? analysePosition(gameMove.fenAfter, exploreDepth) : Promise.resolve(null),
-      ])
-      if (exploreRun.current !== id) return
-
-      const bestUci = fromHere.lines[0]?.pv[0] ?? null
-      setExplore({
-        fen: move.after,
-        from: fen,
-        yours: { san: move.san, score: afterYours.lines[0]?.score ?? null },
-        game: gameMove && afterGame ? { san: gameMove.san, score: afterGame.lines[0]?.score ?? null } : null,
-        best: bestUci
-          ? { san: toSan(fen, bestUci) ?? bestUci, score: fromHere.lines[0]?.score ?? null }
-          : null,
-      })
+      setVariation((current) => ({
+        fromPly: current?.fromPly ?? ply,
+        moves: [
+          ...(current?.moves ?? []),
+          { san: move.san, uci: `${move.from}${move.to}${move.promotion ?? ''}`, fen: move.after },
+        ],
+      }))
     },
-    [analysePosition, exploreDepth, fen, gameFen, legalMoves, parsed.moves, ply, total],
+    [fen, ply],
   )
+
+  /** Playing a move the engine suggested, by name rather than by square. */
+  const playSan = useCallback(
+    (san: string) => {
+      const candidate = legalMoves.find((move) => move.san === san)
+      if (candidate) playMove(candidate.from, candidate.to)
+    },
+    [legalMoves, playMove],
+  )
+
+  // The engine's own opinion of whatever is on the board, refreshed as it
+  // changes. It waits for the report to finish rather than fighting it for
+  // the same engines, and a settled position gets a moment first so stepping
+  // through the game does not queue a search per move.
+  useEffect(() => {
+    if (running) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      let result
+      try {
+        result = await analysePosition(fen, exploreDepth, ENGINE_LINES)
+      } catch {
+        return
+      }
+      if (cancelled) return
+      setEngine({
+        fen,
+        ply: boardPly,
+        lines: result.lines
+          .filter((line) => line.pv.length > 0)
+          .map((line) => ({ score: line.score, san: lineToSan(fen, line.pv, 6) })),
+      })
+    }, ENGINE_DEBOUNCE)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [analysePosition, boardPly, exploreDepth, fen, running])
 
   const onSquare = useCallback(
     (square: string) => {
@@ -223,12 +267,12 @@ export function AnalysisView({
       if (Date.now() - swipedAt.current < 400) return
       setPlaying(false)
       if (picked && targets.includes(square)) {
-        void tryMove(picked, square)
+        playMove(picked, square)
         return
       }
       setPicked(legalMoves.some((move) => move.from === square) ? square : null)
     },
-    [legalMoves, picked, targets, tryMove],
+    [legalMoves, picked, playMove, targets],
   )
   const material = useMemo(() => capturedMaterial(fen), [fen])
   const analyzed = report?.moves[ply - 1] ?? null
@@ -241,10 +285,16 @@ export function AnalysisView({
   // the game is still being searched that is the live scan result; afterwards
   // it is the move's own evaluation.
   const score: Score =
+    (variation && engine?.fen === fen ? engine.lines[0]?.score : null) ??
     liveScores[ply] ??
     analyzed?.score ??
     (ply === 0 ? report?.moves[0]?.bestScore : undefined) ??
     START_SCORE
+
+  // Whichever move led to the position on the board: the game's, or the last
+  // one played by hand.
+  const shown = variation?.moves[variation.moves.length - 1]?.uci ?? currentMove?.uci ?? null
+  const lastMove = shown ? { from: shown.slice(0, 2), to: shown.slice(2, 4) } : null
 
   // Only nag with an arrow when the move actually cost something.
   const suggestion =
@@ -289,15 +339,9 @@ export function AnalysisView({
             <Board
               fen={fen}
               orientation={orientation}
-              lastMove={
-                explore
-                  ? null
-                  : currentMove
-                    ? { from: currentMove.uci.slice(0, 2), to: currentMove.uci.slice(2, 4) }
-                    : null
-              }
-              suggestion={explore ? null : suggestion}
-              badge={explore ? null : (analyzed?.classification ?? null)}
+              lastMove={lastMove}
+              suggestion={variation ? null : suggestion}
+              badge={variation ? null : (analyzed?.classification ?? null)}
               selected={picked}
               targets={targets}
               onSquareClick={onSquare}
@@ -311,6 +355,15 @@ export function AnalysisView({
             accuracy={report?.[bottomColor].accuracy}
             captured={material[bottomColor]}
             edge={material.edge[bottomColor]}
+          />
+
+          <EngineLines
+            lines={engine?.lines ?? []}
+            depth={exploreDepth}
+            ply={engine?.ply ?? boardPly}
+            stale={engine?.fen !== fen}
+            busy={running}
+            onPlay={playSan}
           />
         </div>
 
@@ -368,13 +421,11 @@ export function AnalysisView({
           </div>
 
           <div className="review-foot">
-            {explore ? (
-              <ExplorePanel
-                yours={explore.yours}
-                game={explore.game}
-                best={explore.best}
-                depth={exploreDepth}
-                thinking={explore.yours.score === null}
+            {variation ? (
+              <VariationBar
+                variation={variation}
+                gameMove={variation.fromPly < total ? parsed.moves[variation.fromPly].san : null}
+                onTakeBack={takeBack}
                 onBack={backToGame}
               />
             ) : running ? (
@@ -497,52 +548,51 @@ function PlayerStrip({
   )
 }
 
-const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
-const TAKEN_GLYPH: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' }
-/** What each side starts with, and what each of those is worth. */
-const START_COUNT: [string, number][] = [
-  ['q', 1],
-  ['r', 2],
-  ['b', 2],
-  ['n', 2],
-  ['p', 8],
-]
-
-export interface Material {
-  /** The pieces this side has taken, as glyphs, biggest first. */
-  white: string
-  black: string
-  /** Material lead in pawns, for the side that has one. */
-  edge: Record<Color, number>
-}
-
 /**
- * What each side has taken, read off the position rather than the move list so
- * it is right wherever the board is - including a position reached by trying a
- * move out. `edge` is the material lead in pawns, which is the number a chess
- * site puts beside the pieces. A promotion can leave a side with more of a
- * piece than it started with, so what is missing never goes below zero.
+ * The line you have played by hand, and the way back. Stepping through the
+ * game with the arrows leaves it too, so nothing traps you here.
  */
-function capturedMaterial(fen: string): Material {
-  const board = fen.split(' ')[0]
-  const taken = { white: '', black: '' }
-  const held = { white: 0, black: 0 }
-  for (const [kind, start] of START_COUNT) {
-    for (const color of ['white', 'black'] as const) {
-      const letter = color === 'white' ? kind.toUpperCase() : kind
-      const left = board.split(letter).length - 1
-      held[color] += left * PIECE_VALUE[kind]
-      // Whatever is missing from this side was taken by the other one.
-      const other = color === 'white' ? 'black' : 'white'
-      taken[other] += TAKEN_GLYPH[kind].repeat(Math.max(0, start - left))
-    }
-  }
-  const lead = held.white - held.black
-  return {
-    white: taken.white,
-    black: taken.black,
-    edge: { white: Math.max(0, lead), black: Math.max(0, -lead) },
-  }
+function VariationBar({
+  variation,
+  gameMove,
+  onTakeBack,
+  onBack,
+}: {
+  variation: Variation
+  /** What the game played from the position the line left, if it had a move left. */
+  gameMove: string | null
+  onTakeBack: () => void
+  onBack: () => void
+}) {
+  const first = variation.moves[0]?.san
+  return (
+    <div className="comment exploring">
+      <div className="exploring-head">
+        <strong>Your line</strong>
+        <span className="exploring-buttons">
+          <button className="ghost small" onClick={onTakeBack}>
+            Take back
+          </button>
+          <button className="ghost small" onClick={onBack}>
+            Back to the game
+          </button>
+        </span>
+      </div>
+      <span className="exploring-moves">
+        {variation.moves
+          .map((move, index) => {
+            const at = variation.fromPly + index
+            const number = Math.floor(at / 2) + 1
+            const prefix = at % 2 === 0 ? `${number}. ` : index === 0 ? `${number}… ` : ''
+            return `${prefix}${move.san}`
+          })
+          .join(' ')}
+      </span>
+      {gameMove && first && gameMove !== first && (
+        <span className="exploring-note">In the game: {gameMove}</span>
+      )}
+    </div>
+  )
 }
 
 function scoreline(result: string): string {

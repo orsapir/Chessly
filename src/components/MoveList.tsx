@@ -11,9 +11,20 @@ interface Props {
 
 export function MoveList({ moves, currentPly, onSelect }: Props) {
   const activeRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
+  // Keep the move in view by scrolling the list itself. scrollIntoView walks
+  // up the ancestors and scrolls whichever one it finds, which on a phone -
+  // where this list is not a scrolling box at all - means the page jumps down
+  // on every move.
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' })
+    const cell = activeRef.current
+    const list = listRef.current
+    if (!cell || !list) return
+    const move = cell.getBoundingClientRect()
+    const box = list.getBoundingClientRect()
+    if (move.top < box.top) list.scrollTop -= box.top - move.top
+    else if (move.bottom > box.bottom) list.scrollTop += move.bottom - box.bottom
   }, [currentPly])
 
   const rows: { number: number; white?: AnalyzedMove; black?: AnalyzedMove }[] = []
@@ -27,7 +38,7 @@ export function MoveList({ moves, currentPly, onSelect }: Props) {
   }
 
   return (
-    <div className="move-list">
+    <div className="move-list" ref={listRef}>
       {rows.map((row) => (
         <div className="move-row" key={row.number}>
           <span className="move-number">{row.number}.</span>

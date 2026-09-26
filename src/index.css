@@ -294,7 +294,15 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
   max-width: 1080px;
   margin: 0 auto;
 }
-.board-column { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; max-width: 640px; }
+.board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  /* The board is square, so its width is also its height: keep it inside the
+     window, or the engine lines under it fall off the bottom. */
+  max-width: min(640px, calc(100vh - 320px));
+}
 .board-wrap { display: flex; gap: 6px; align-items: stretch; }
 
 .board { flex: 1; width: 100%; border-radius: 4px; overflow: hidden; display: block; }
@@ -443,16 +451,64 @@ a.chip.link:hover { color: var(--accent); border-color: var(--accent-soft); }
 .verdict-head strong { flex: 1; min-width: 0; }
 .verdict-head .comment-eval { flex: none; }
 
-/* ---------- trying a move ---------- */
+/* ---------- what the engine is looking at ---------- */
 
-.comment.exploring { border-left-color: #6f9ad4; gap: 0.5rem; }
+.engine-lines {
+  background: var(--panel);
+  margin-top: 0.25rem;
+  border-radius: 4px;
+  padding: 0.35rem 0.4rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.engine-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.1rem 0.25rem 0.25rem;
+}
+.engine-head strong { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.engine-head span { color: var(--muted); font-size: 0.72rem; margin-left: auto; }
+.engine-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0.18rem 0.3rem;
+  font-weight: 400;
+  font-size: 0.82rem;
+  text-align: left;
+  min-height: 1.55rem;
+}
+.engine-line:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); }
+.engine-lines.stale .engine-line { opacity: 0.45; }
+.engine-line:disabled { cursor: default; }
+.engine-line.empty { color: var(--muted); }
+.engine-score {
+  flex: none;
+  min-width: 3.1rem;
+  text-align: center;
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+.engine-score.for-white { background: #f0eeeb; color: #262421; }
+.engine-score.for-black { background: #46433f; color: #f0eeeb; }
+/* One line each: the point is to compare them at a glance. */
+.engine-moves { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- a line of your own ---------- */
+
+.comment.exploring { border-left-color: #6f9ad4; gap: 0.4rem; }
 .exploring-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
-.exploring-lines { width: 100%; border-collapse: collapse; }
-.exploring-lines td { padding: 0.18rem 0; font-size: 0.9rem; }
-.exploring-lines tr.yours td { font-weight: 600; color: var(--text); }
-.exploring-label { color: var(--muted); font-size: 0.78rem; width: 7.5rem; }
-.exploring-san { font-variant-numeric: tabular-nums; }
-.exploring-score { text-align: right; font-variant-numeric: tabular-nums; }
+.exploring-buttons { display: flex; gap: 0.3rem; flex: none; }
+.exploring-moves { color: var(--text) !important; font-variant-numeric: tabular-nums; line-height: 1.5; }
 .exploring-note { color: var(--muted); font-size: 0.75rem; }
 
 /* ---------- analysis in progress ---------- */
